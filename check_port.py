@@ -137,18 +137,24 @@ def get_service_info(port, pid=None):
         110: ("POP3", "dovecot", "postfix"),
         143: ("IMAP", "dovecot", "postfix"),
         443: ("HTTPS", "apache2", "nginx"),
+        631: ("CUPS-Imprimante", "cups", "cups"),
         993: ("IMAPS", "dovecot", "postfix"),
         995: ("POP3S", "dovecot", "postfix"),
         3306: ("MySQL", "mysql", "mariadb"),
         5432: ("PostgreSQL", "postgresql", "postgres"),
         6379: ("Redis", "redis-server", "redis"),
-        27017: ("MongoDB", "mongod", "mongodb"),
         8080: ("HTTP-Alt", "tomcat", "jetty"),
+        11434: ("Ollama-IA", "ollama", "ollama"),
+        27017: ("MongoDB", "mongod", "mongodb"),
     }
+    
+    # Ports dynamiques/éphémères (plages communes)
+    if 32768 <= port <= 65535:
+        return ("Port-Dynamique", None, None)
     
     if port in service_map:
         return service_map[port]
-    return ("Unknown", None, None)
+    return ("Service-Inconnu", None, None)
 
 def get_process_details(pid):
     """Récupère les détails d'un processus donné"""
@@ -179,6 +185,25 @@ def get_process_details(pid):
         except Exception:
             pass
     return {"name": "unknown", "username": "unknown", "cmdline": "unknown", "status": "unknown"}
+
+def get_pids_for_port(port):
+    """Retourne une liste d'infos procesus (pid,name,user,cmd) pour un port donné (best-effort)."""
+    plat = platform.system().lower()
+    pids = set()
+    if "linux" in plat or "darwin" in plat:
+        pids = find_pids_linux(port)
+    elif "windows" in plat:
+        pids = find_pids_windows(port)
+    infos = []
+    for pid in sorted(pids):
+        info = get_process_details(pid)
+        infos.append({
+            "pid": pid,
+            "name": info.get("name", "unknown"),
+            "user": info.get("username", "unknown"),
+            "cmd": info.get("cmdline", "")
+        })
+    return infos
 
 def suggest_service_commands(port, pids, service_name, service_cmd):
     """Suggère des commandes de service appropriées"""
@@ -261,11 +286,59 @@ def suggest_remote_commands(target, ports, remote_os_hint=None):
     print("\nNote: Bloquer via pare-feu est préférable à tuer des services critiques.")
     print("--- Fin des commandes distantes ---\n")
 
+def analyze_port(port):
+    """Analyse un port spécifique et retourne des informations détaillées"""
+    service_name, service_cmd, _ = get_service_info(port)
+    
+    port_info = {
+        631: {
+            "nom": "CUPS (Common Unix Printing System)",
+            "description": "Serveur d'impression - Interface web sur http://localhost:631",
+            "securite": "🟡 Peu risqué - Service d'impression local",
+            "action": "Peut être arrêté si pas d'imprimantes"
+        },
+        11434: {
+            "nom": "Ollama (IA/LLM local)",
+            "description": "Serveur pour modèles de langage IA - API sur http://localhost:11434",
+            "securite": "🟡 Peu risqué - Service IA local",
+            "action": "Peut être arrêté si pas utilisé"
+        },
+        3306: {
+            "nom": "MySQL/MariaDB",
+            "description": "Serveur de base de données",
+            "securite": "🔴 Critique - Contient des données importantes",
+            "action": "⚠️ Arrêt délicat - Risque de corruption"
+        },
+        22: {
+            "nom": "SSH (Secure Shell)",
+            "description": "Accès distant sécurisé",
+            "securite": "🟡 Important - Accès administrateur",
+            "action": "⚠️ Ne pas fermer si connexion SSH active"
+        }
+    }
+    
+    if port in port_info:
+        return port_info[port]
+    elif 32768 <= port <= 65535:
+        return {
+            "nom": f"Port dynamique {port}",
+            "description": "Port assigné temporairement par le système",
+            "securite": "🟢 Généralement sans risque",
+            "action": "Peut être fermé - Se réouvre automatiquement si nécessaire"
+        }
+    else:
+        return {
+            "nom": f"Service sur port {port}",
+            "description": "Service non identifié",
+            "securite": "🟡 À vérifier",
+            "action": "Identifier le service avant de fermer"
+        }
+
 def show_help():
     """Affiche l'aide du script"""
     print("🔍 SCANNER DE PORTS AVANCÉ")
     print("=" * 40)
-    print("USAGE: python3 check2_port.py [target] [ports]")
+    print("USAGE: python3 check_port.py [target] [ports]")
     print()
     print("OPTIONS DE PORTS:")
     print("  (vide)       : ports communs seulement")
@@ -275,26 +348,35 @@ def show_help():
     print("  'top5000'    : ports 1-5000")
     print("  '1-1024'     : plage personnalisée")
     print("  '22,80,443'  : ports spécifiques")
+    print("  'analyze'    : analyser des ports spécifiques")
+    print("  --show-dynamic: afficher aussi les ports dynamiques/éphémères (par défaut masqués)")
     print()
     print("EXEMPLES:")
-    print("  python3 check2_port.py 192.168.1.1 all")
-    print("  python3 check2_port.py localhost top1000")
-    print("  python3 check2_port.py 10.0.0.1 1-1024")
-    print("  python3 check2_port.py example.com 22,80,443")
+    print("  python3 check_port.py 192.168.1.1 all")
+    print("  python3 check_port.py localhost top1000")
+    print("  python3 check_port.py 10.0.0.1 1-1024")
+    print("  python3 check_port.py localhost 631,11434,33362")
     print()
     print("⚡ Le script s'optimise automatiquement selon le nombre de ports!")
     print()
 
 def main():
-    if len(sys.argv) >= 2 and sys.argv[1] in ["-h", "--help", "help"]:
+    # Simple parsing des arguments: support -h/--help et --show-dynamic
+    args = sys.argv[1:]
+    if any(a in ("-h", "--help", "help") for a in args):
         show_help()
         return
-    
-    if len(sys.argv) >= 2:
-        target = sys.argv[1]
+
+    show_dynamic = False
+    if "--show-dynamic" in args:
+        show_dynamic = True
+        args = [a for a in args if a != "--show-dynamic"]
+
+    if len(args) >= 1:
+        target = args[0]
     else:
         target = DEFAULT_TARGET
-    ports_arg = sys.argv[2] if len(sys.argv) >= 3 else None
+    ports_arg = args[1] if len(args) >= 2 else None
     ports = parse_ports(ports_arg)
 
     try:
@@ -352,14 +434,39 @@ def main():
     print(f"\n✅ Scan terminé en {end - start:.2f} secondes.")
     print(f"📊 Vitesse moyenne: {rate:.0f} ports/seconde")
 
-    if not open_ports:
-        print("❌ Aucun port ouvert détecté.")
+    # Filtrer les ports dynamiques par défaut (masqués)
+    if not show_dynamic:
+        display_ports = [ (p,b) for (p,b) in open_ports if get_service_info(p)[0] != "Port-Dynamique" ]
+    else:
+        display_ports = open_ports[:]
+
+    if not display_ports:
+        print("❌ Aucun port ouvert détecté (après filtrage des ports dynamiques).")
+        if not show_dynamic:
+            print("Si vous voulez afficher aussi les ports dynamiques, relancez avec --show-dynamic")
         return
 
-    print(f"\n🎯 {len(open_ports)} ports ouverts trouvés:")
-    for p, banner in sorted(open_ports):
+    print(f"\n🎯 {len(display_ports)} ports ouverts trouvés:")
+    for p, banner in sorted(display_ports):
+        service_name, _, _ = get_service_info(p)
         banner_info = f" - {banner[:60]}..." if banner and len(banner) > 60 else f" - {banner}" if banner else ""
-        print(f"  🔓 {p}{banner_info}")
+
+        # Récupérer les PID et infos d'application (best-effort)
+        pid_infos = get_pids_for_port(p)
+        pid_display = ""
+        if pid_infos:
+            pid_display = ", ".join(f"PID {x['pid']}:{x['name']}" for x in pid_infos)
+        else:
+            pid_display = "(PID inconnu - exécutez avec sudo pour plus de détails)"
+
+        # Analyse du port pour plus d'infos
+        port_analysis = analyze_port(p)
+        security_icon = port_analysis["securite"][:2]  # Récupère juste l'emoji
+
+        print(f"  🔓 Port {p} ({service_name}) {security_icon}  {pid_display}")
+        print(f"      📋 {port_analysis['description']}")
+        if banner:
+            print(f"      🏷️  Banner: {banner[:80]}...")
 
     sel = input("\n🔧 Saisis les ports à fermer (séparés par des virgules), ou Enter pour quitter : ").strip()
     if not sel:

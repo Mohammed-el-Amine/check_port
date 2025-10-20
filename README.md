@@ -155,6 +155,23 @@ sudo lsof -i :3306
 sudo netstat -tlnp | grep :3306
 ```
 
+## ⚙️ Ports dynamiques (masqués par défaut)
+
+Le script masque par défaut les ports "dynamiques" (éphémères, généralement > ~32768) car ils sont souvent temporaires et n'indiquent pas un service permanent.
+
+- Pour voir aussi ces ports, utilisez le flag `--show-dynamic` :
+
+```bash
+python3 check_port.py --show-dynamic localhost all
+# ou avec sudo pour obtenir les PID complets
+sudo python3 check_port.py --show-dynamic localhost all
+```
+
+- Pourquoi les masquer ? Parce que ces ports sont souvent utilisés pour des connexions sortantes temporaires ou des services de développement et n'ont pas besoin d'être examinés systématiquement.
+
+- Si un port dynamique reste **toujours** à l'écoute ou expose un service sur `0.0.0.0`, il faut l'investiguer (voir section "Aucun PID trouvé" et commandes `ss`/`lsof`).
+
+
 ### Service ne s'arrête pas
 ```bash
 # Forcer l'arrêt
