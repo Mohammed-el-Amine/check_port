@@ -191,4 +191,4 @@ sudo systemctl disable mysql  # Désactiver au démarrage
 - **v1.0** : Scan de base
 - **v2.0** : Optimisations et interface améliorée
 - **v2.1** : Détection de services et arrêt intelligent
-- **v2.2** : Traduction française et documentation
+- **v2.2** : Documentation
