@@ -111,17 +111,31 @@ def find_pids_windows(port):
     """Trouve les PID des processus utilisant un port donné sous Windows"""
     pids = set()
     try:
-        out = subprocess.check_output(["netstat", "-ano"], stderr=subprocess.DEVNULL).decode(errors="ignore", errors_replace=True)
+        out = subprocess.check_output(["netstat", "-ano"], stderr=subprocess.DEVNULL).decode(errors="ignore")
         for line in out.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            # sauter l'entête (Proto Local Address Foreign Address State PID)
+            if line.lower().startswith("proto"):
+                continue
             parts = line.split()
-            if len(parts) >= 5:
-                local = parts[1]
-                pid = parts[-1]
-                if f":{port}" in local:
-                    try:
-                        pids.add(int(pid))
-                    except:
-                        pass
+            if len(parts) < 2:
+                continue
+            # Le PID est normalement la dernière colonne
+            pid = parts[-1]
+            # Rechercher une colonne contenant le port local (prise en charge IPv4/IPv6)
+            try:
+                for col in parts[:-1]:
+                    if f":{port}" in col or col.endswith(f".{port}"):
+                        try:
+                            pids.add(int(pid))
+                        except:
+                            pass
+                        break
+            except Exception:
+                # Ne pas laisser une ligne foireuse casser tout
+                continue
     except Exception:
         pass
     return pids
