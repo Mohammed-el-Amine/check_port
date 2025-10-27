@@ -186,7 +186,61 @@ sudo systemctl disable mysql  # Désactiver au démarrage
 - `examples.sh` : Exemples d'utilisation
 - `DOCUMENTATION.md` : Ce fichier
 
-## 🔄 Versions
+## �️ Interface graphique (GUI)
+
+### Lancer l'interface graphique
+
+- Depuis le dossier du projet :
+```bash
+python3 gui_port_scanner.py
+```
+
+- Si vous souhaitez exécuter avec les droits root (pour voir les PID et arrêter des services) :
+```bash
+sudo python3 gui_port_scanner.py
+```
+
+- Remarque : sur Linux le bouton "Relancer avec sudo" essaie pkexec / terminal. Si cela ne fonctionne pas, relancer manuellement avec sudo.
+
+### Utilisation rapide de la GUI
+
+- Cible : IP ou hostname.
+- Ports : choix prédéfini (common/top1000/all) ou saisie manuelle (ex: `1-1024`, `22,80,443`).
+- Boutons :
+	- Démarrer le Scan — lance le scan en arrière-plan.
+	- Arrêter — interrompt le scan.
+	- Effacer — supprime les résultats.
+	- Aide — ouvre la documentation embarquée.
+- Résultats : double-clic sur une ligne pour voir les détails (banner, PIDs, cmdline). Clic droit pour actions (arrêter service / tuer processus).
+- Option : "Afficher les ports dynamiques" pour inclure les ports éphémères (par défaut masqués).
+
+### Dépannage UI & permissions
+
+- Si la fenêtre d'aide, la boîte d'admin ou les boutons n'apparaissent pas correctement :
+	- Vérifiez que vous avez un affichage X/Wayland actif.
+	- Agrandissez la fenêtre (les dialogues sont proportionnels à l'écran) ou lancez le script depuis un terminal.
+	- Relancez manuellement : `sudo python3 gui_port_scanner.py` si la relance via l'UI échoue.
+- Si pkexec affiche le prompt mais que l'application ne se relance pas automatiquement, exécutez-la manuellement en root et signalez-moi pour que j'ajoute des logs de diagnostic (`--debug`).
+
+## 📦 Packaging & builds
+
+- Scripts de build fournis :
+	- `build_linux.sh` — script pour créer un exécutable avec PyInstaller (Linux).
+	- `build_windows.ps1` — script pour Windows.
+	- `scan_port_gui.spec` — spec PyInstaller pour la GUI.
+
+- Exemple rapide (Linux) :
+```bash
+# installer pyinstaller si besoin
+pip3 install pyinstaller
+# créer le binaire en mode onefile (script de build fourni)
+./build_linux.sh
+```
+
+- CI : un workflow GitHub Actions (si présent) peut construire automatiquement les artefacts.
+
+
+## �🔄 Versions
 
 - **v1.0** : Scan de base
 - **v2.0** : Optimisations et interface améliorée
