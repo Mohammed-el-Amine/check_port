@@ -10,8 +10,10 @@ import io
 import contextlib
 import platform
 import subprocess
+import shutil
 import threading
 import time
+import shlex
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import socket
 
@@ -240,45 +242,145 @@ class PortScannerGUI:
         """Relance le programme avec des privilèges administrateur"""
         plat = platform.system().lower()
         script_path = os.path.abspath(__file__)
-        
+        exe = sys.executable
+
         try:
+            # macOS / Linux flow: prefer graphical helpers, then terminal fallback, then sudo exec
             if "linux" in plat or "darwin" in plat:
-                # Afficher un message d'information
+                # Try macOS AppleScript first
+                if "darwin" in plat:
+                    try:
+                        # Use osascript to run the script with administrator privileges (will show password prompt)
+                        osa_cmd = f"do shell script \"{exe} '{script_path}'\" with administrator privileges"
+                        subprocess.Popen(["osascript", "-e", osa_cmd])
+                        self.root.quit()
+                        return
+                    except Exception:
+                        # fallthrough to other methods
+                        pass
+
+                # Try pkexec first (preferred polkit flow). Use subprocess.run with a short timeout
+                pkexec_path = shutil.which("pkexec")
+                if pkexec_path:
+                    try:
+                        # Preserve essential environment variables so pkexec/polkit can show a GUI prompt
+                        env = os.environ.copy()
+                        for k in ("DISPLAY", "XAUTHORITY", "DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR"):
+                            if k in os.environ:
+                                env[k] = os.environ[k]
+
+                        # Build a shell command that preserves essential env vars and execs the python process.
+                        # Use sh -c under pkexec so the environment is set in the elevated process.
+                        def mk_env_assignment(k):
+                            v = env.get(k)
+                            return f'{k}={shlex.quote(v)}' if v is not None else None
+
+                        parts = []
+                        for k in ("PATH", "DISPLAY", "XAUTHORITY", "DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR"):
+                            a = mk_env_assignment(k)
+                            if a:
+                                parts.append(a)
+
+                        # Build the exec string
+                        exec_cmd = ' '.join(parts + [f'exec {shlex.quote(exe)} {shlex.quote(script_path)}'])
+
+                        # Call pkexec to run: /bin/sh -c "<env...> exec 'python' 'script'"
+                        shell_runner = ['/bin/sh', '-c', exec_cmd]
+                        cmd = [pkexec_path] + shell_runner
+
+                        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+
+                        # Monitor: wait a little and if pkexec still runs, close GUI to let the auth dialog be used.
+                        def monitor_and_close(p):
+                            try:
+                                # Give user ample time to interact with the polkit prompt
+                                time.sleep(8)
+                                if p.poll() is None:
+                                    try:
+                                        self.root.after(0, self.root.quit)
+                                    except Exception:
+                                        pass
+                                else:
+                                    try:
+                                        err = p.stderr.read().decode(errors="ignore")
+                                    except Exception:
+                                        err = "<no stderr>"
+                                    print(f"pkexec exited quickly (rc={p.returncode}): {err}")
+                            except Exception as e:
+                                print(f"monitor thread error: {e}")
+
+                        threading.Thread(target=monitor_and_close, args=(proc,), daemon=True).start()
+                        return
+                    except Exception as e:
+                        print(f"pkexec invocation error: {e}")
+
+                # Try gksudo / kdesudo if available (older GUI sudo wrappers)
+                for helper in ("gksudo", "kdesudo"):
+                    helper_path = shutil.which(helper)
+                    if helper_path:
+                        try:
+                            subprocess.Popen([helper_path, exe, script_path])
+                            self.root.quit()
+                            return
+                        except Exception:
+                            continue
+
+                # Fallback: open a terminal emulator that runs sudo so the user sees a password prompt
+                terminals = [
+                    ("gnome-terminal", ["--", "bash", "-lc"]),
+                    ("konsole", ["-e"]),
+                    ("xfce4-terminal", ["--command"]),
+                    ("mate-terminal", ["--", "bash", "-lc"]),
+                    ("lxterminal", ["-e"]),
+                    ("terminator", ["-x"]),
+                    ("xterm", ["-e"]),
+                ]
+
+                sudo_cmd = f"sudo {exe} '{script_path}'"
+                for term, extra_args in terminals:
+                    if shutil.which(term):
+                        try:
+                            # Construct command depending on terminal
+                            if term == "xterm":
+                                cmd = [term] + extra_args + [f"{sudo_cmd}; echo; read -n1 -s -r -p 'Press any key to close...'"]
+                            else:
+                                # Use bash -lc style where supported so we can keep the terminal open briefly
+                                cmd = [term] + extra_args + [f"{sudo_cmd}; echo; read -n1 -s -r -p 'Press any key to close...'"]
+                            subprocess.Popen(cmd)
+                            self.root.quit()
+                            return
+                        except Exception:
+                            continue
+
+                # Last resort: execvp with sudo (will open terminal if user launched from one)
                 messagebox.showinfo(
                     "Redémarrage",
-                    "Le programme va être relancé avec des privilèges administrateur.\n\n"
-                    "Veuillez saisir votre mot de passe sudo dans le terminal.\n\n"
-                    "La fenêtre actuelle va se fermer."
+                    "Aucun helper graphique détecté. Le programme va être relancé avec sudo dans le même environnement."
                 )
-                
-                # Fermer la fenêtre et relancer avec sudo en remplaçant le processus
                 self.root.quit()
-                os.execvp('sudo', ['sudo', sys.executable, script_path])
-                
+                os.execvp('sudo', ['sudo', exe, script_path])
+
             elif "windows" in plat:
                 import ctypes
-                script_path = os.path.abspath(__file__)
-                exe = sys.executable
-                # Gérer les espaces dans les chemins
-                if ' ' in exe:
-                    exe = f'"{exe}"'
-                if ' ' in script_path:
-                    script_path = f'"{script_path}"'
-                # Tenter le relancement Windows
-                success = ctypes.windll.shell32.ShellExecuteW(
-                    None, "runas", exe, script_path, None, 1
-                )
-                if success > 32:  # Succès sur Windows
-                    messagebox.showinfo("Redémarrage", "Le programme va être relancé en tant qu'administrateur.")
-                    self.root.quit()
-                else:
-                    messagebox.showwarning(
-                        "Échec du redémarrage",
-                        "Impossible de relancer en tant qu'administrateur.\nContinuation en mode limité."
-                    )
+                # Use ShellExecute 'runas' to trigger UAC; pass the script path as parameter
+                params = f'"{script_path}"'
+                try:
+                    ret = ctypes.windll.shell32.ShellExecuteW(None, "runas", exe, params, None, 1)
+                    if int(ret) > 32:
+                        # launched successfully; exit current GUI
+                        self.root.quit()
+                        return
+                    else:
+                        messagebox.showwarning(
+                            "Échec du redémarrage",
+                            "Impossible de relancer en tant qu'administrateur. Continuation en mode limité."
+                        )
+                except Exception as e:
+                    messagebox.showerror("Erreur", f"Échec du relancement UAC: {e}")
+
         except Exception as e:
             messagebox.showerror(
-                "Erreur de redémarrage", 
+                "Erreur de redémarrage",
                 f"Impossible de relancer avec privilèges admin: {e}\n\nContinuation en mode limité."
             )
     
