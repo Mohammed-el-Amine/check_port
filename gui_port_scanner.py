@@ -17,6 +17,8 @@ import shlex
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import socket
 
+
+
 # Texte d'aide intégré — guide d'utilisation de l'interface graphique (en français)
 HELP_TEXT = """
 Guide d'utilisation - Scanner de Ports (Interface Graphique)
@@ -117,12 +119,43 @@ class PortScannerGUI:
         self.scan_results = []
         self.is_admin = self.check_admin_privileges()
         self.admin_dialog_shown = False  # Pour éviter de redemander
+
+        # Compute a one-time scale based on the screen size and derive
+        # scaled font tuples. This makes the UI responsive to screen
+        # resolution at startup but avoids continuous resizing.
+        try:
+            self.root.update_idletasks()
+            sw = float(self.root.winfo_screenwidth() or 1200)
+            sh = float(self.root.winfo_screenheight() or 800)
+            base_w, base_h = 1200.0, 800.0
+            scale = min(max(min(sw / base_w, sh / base_h), 0.8), 1.4)
+        except Exception:
+            scale = 1.0
+
+        def scaled_font(tpl, default_size):
+            try:
+                fam = tpl[0] if isinstance(tpl, (list, tuple)) and len(tpl) > 0 else tpl
+                size = tpl[1] if isinstance(tpl, (list, tuple)) and len(tpl) > 1 else default_size
+                weight = tpl[2] if isinstance(tpl, (list, tuple)) and len(tpl) > 2 else None
+                new_size = max(9, int(size * scale))
+                if weight:
+                    return (fam, new_size, weight)
+                return (fam, new_size)
+            except Exception:
+                return (tpl if tpl else "", int(default_size * scale))
+
+        self.scaled_font_title = scaled_font(FONT_TITLE, 18)
+        self.scaled_font_sub = scaled_font(FONT_SUB, 12)
+        self.scaled_font_ui = scaled_font(FONT_UI, 12)
         
         # Initialiser l'UI d'abord
         self.setup_ui()
         
         # Puis vérifier les privilèges
         self.root.after(100, self.check_and_request_admin)
+
+        # Do not bind a global resize font-scaler to avoid feedback/render loops.
+        # The layout uses grid weights and proportional Treeview columns.
     
     def check_admin_privileges(self):
         """Vérifie si le script s'exécute avec des privilèges administrateur"""
@@ -151,8 +184,16 @@ class PortScannerGUI:
         # Créer une boîte de dialogue personnalisée avec 3 options
         dialog = tk.Toplevel(self.root)
         dialog.title("Privilèges Administrateur")
-        dialog.geometry("500x300")
         dialog.transient(self.root)
+        # Taille proportionnelle à l'écran (one-time) pour rester responsive
+        try:
+            sw = int(self.root.winfo_screenwidth() or 1200)
+            sh = int(self.root.winfo_screenheight() or 800)
+            w = max(420, int(sw * 0.45))
+            h = max(260, int(sh * 0.28))
+            dialog.geometry(f"{w}x{h}")
+        except Exception:
+            dialog.geometry("500x300")
         # Protéger grab_set: attendre que la fenêtre soit visible puis tenter le grab
         try:
             dialog.update_idletasks()
@@ -163,11 +204,17 @@ class PortScannerGUI:
             # on continue sans grab pour éviter l'exception qui stoppe l'événement Tk
             pass
         
-        # Centrer la fenêtre
-        dialog.geometry("+{}+{}".format(
-            int(dialog.winfo_screenwidth()/2 - 250),
-            int(dialog.winfo_screenheight()/2 - 150)
-        ))
+        # Centrer la fenêtre and set sensible minimum size so controls remain clickable
+        try:
+            dialog.update_idletasks()
+            sx = dialog.winfo_screenwidth()
+            sy = dialog.winfo_screenheight()
+            dx = int((sx - w) / 2) if 'w' in locals() else int((sx - 500) / 2)
+            dy = int((sy - h) / 2) if 'h' in locals() else int((sy - 300) / 2)
+            dialog.geometry(f"+{dx}+{dy}")
+            dialog.minsize(int((w if 'w' in locals() else 500) * 0.6), int((h if 'h' in locals() else 300) * 0.6))
+        except Exception:
+            pass
         
         # Frame principal
         main_frame = ttk.Frame(dialog, padding="20")
@@ -175,49 +222,72 @@ class PortScannerGUI:
         
         # Icône et titre
         title_label = tk.Label(
-            main_frame, 
-            text="🔐 Privilèges Administrateur", 
-            font=("Arial", 14, "bold")
+            main_frame,
+            text="🔐 Privilèges Administrateur",
+            font=self.scaled_font_title,
+            bg=PALETTE["bg"],
+            fg=PALETTE["text"]
         )
         title_label.pack(pady=(0, 20))
         
-        # Message
-        message = tk.Label(
-            main_frame,
-            text="Pour obtenir les informations complètes sur les PID et pouvoir arrêter les services,\n"
-                 "il est recommandé d'exécuter ce programme avec des privilèges administrateur.\n\n"
-                 "Que souhaitez-vous faire ?",
-            justify=tk.CENTER,
-            wraplength=450
-        )
-        message.pack(pady=(0, 30))
-        
         # Variable pour la réponse
         self.admin_choice = None
-        
-        # Boutons
+
+        # Boutons - placer en bas et garder visible
         buttons_frame = ttk.Frame(main_frame)
-        buttons_frame.pack(fill=tk.X)
-        
+        buttons_frame.pack(fill=tk.X, side=tk.BOTTOM, pady=(10, 0))
+
         ttk.Button(
             buttons_frame,
             text="🚀 Relancer avec sudo",
-            command=lambda: self.set_admin_choice("restart", dialog)
+            command=lambda: self.set_admin_choice("restart", dialog),
+            style="Accent.TButton"
         ).pack(side=tk.LEFT, padx=(0, 10))
-        
+
         ttk.Button(
             buttons_frame,
             text="📝 Continuer en mode limité",
             command=lambda: self.set_admin_choice("continue", dialog)
         ).pack(side=tk.LEFT, padx=(0, 10))
-        
+
         ttk.Button(
             buttons_frame,
             text="❌ Quitter",
             command=lambda: self.set_admin_choice("quit", dialog)
         ).pack(side=tk.LEFT)
+
+        # Use a scrollable read-only text area for the message so it remains usable
+        try:
+            msg_height = max(4, int((h if 'h' in locals() else 300) * 0.18))
+        except Exception:
+            msg_height = 6
+
+        msg_box = scrolledtext.ScrolledText(
+            main_frame,
+            height=msg_height,
+            wrap=tk.WORD,
+            font=self.scaled_font_ui,
+            bg=PALETTE["bg"],
+            fg=PALETTE["text"],
+            relief=tk.FLAT
+        )
+        msg_box.insert(tk.END, (
+            "Pour obtenir les informations complètes sur les PID et pouvoir arrêter les services,\n"
+            "il est recommandé d'exécuter ce programme avec des privilèges administrateur.\n\n"
+            "Que souhaitez-vous faire ?"
+        ))
+        msg_box.config(state=tk.DISABLED)
+        msg_box.pack(fill=tk.BOTH, expand=True, pady=(0, 12))
         
         # Attendre la réponse
+        # Ensure the dialog receives focus and behaves modally where possible
+        try:
+            dialog.lift()
+            dialog.focus_force()
+            dialog.grab_set()
+        except Exception:
+            pass
+
         dialog.wait_window()
         
         # Traiter la réponse
@@ -383,7 +453,7 @@ class PortScannerGUI:
                 "Erreur de redémarrage",
                 f"Impossible de relancer avec privilèges admin: {e}\n\nContinuation en mode limité."
             )
-    
+
     def setup_ui(self):
         """Configure l'interface utilisateur"""
         # Style
@@ -399,10 +469,10 @@ class PortScannerGUI:
 
         # Base frame and label styles
         style.configure("TFrame", background=PALETTE["bg"]) 
-        style.configure("TLabel", background=PALETTE["bg"], foreground=PALETTE["text"], font=FONT_UI)
+        style.configure("TLabel", background=PALETTE["bg"], foreground=PALETTE["text"], font=self.scaled_font_ui)
 
         # Buttons: macOS-like flat buttons with blue accent for primary actions
-        style.configure("TButton", font=FONT_UI, padding=6, background=PALETTE["card"], borderwidth=0, focusthickness=0)
+        style.configure("TButton", font=self.scaled_font_ui, padding=6, background=PALETTE["card"], borderwidth=0, focusthickness=0)
         style.configure("Accent.TButton", background=PALETTE["accent"], foreground="#ffffff", relief="flat")
         style.map("Accent.TButton",
                   background=[('active', '#0666d6'), ('disabled', '#94a3b8')],
@@ -414,11 +484,18 @@ class PortScannerGUI:
                         fieldbackground=PALETTE["card"],
                         foreground=PALETTE["text"],
                         rowheight=26,
-                        font=FONT_UI)
+                        font=self.scaled_font_ui)
+        # Build heading font from scaled sub font (ensure bold)
+        try:
+            heading_family = self.scaled_font_sub[0]
+            heading_size = int(self.scaled_font_sub[1]) if len(self.scaled_font_sub) > 1 else 11
+        except Exception:
+            heading_family = FONT_SUB[0]
+            heading_size = 11
         style.configure("Treeview.Heading",
                         background=PALETTE["card"],
                         foreground=PALETTE["muted"],
-                        font=(FONT_SUB[0], 11, "bold"))
+                        font=(heading_family, max(10, heading_size), "bold"))
 
         # Progressbar
         style.configure("Colored.Horizontal.TProgressbar", troughcolor=PALETTE["card"], background=PALETTE["accent"]) 
@@ -431,12 +508,12 @@ class PortScannerGUI:
             self.root.configure(bg=PALETTE["bg"])
         except Exception:
             pass
-        
+
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
         main_frame.columnconfigure(1, weight=1)
         main_frame.rowconfigure(4, weight=1)
-        
+
         # Bandeau titre
         banner = tk.Frame(main_frame, bg=PALETTE["accent"], height=64)
         banner.grid(row=0, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 12))
@@ -444,15 +521,15 @@ class PortScannerGUI:
         title_label = tk.Label(
             banner,
             text="🔍 Scanner de Ports Avancé",
-            font=FONT_TITLE,
+            font=self.scaled_font_title,
             bg=PALETTE["accent"],
             fg="#ffffff"
         )
         title_label.pack(side=tk.LEFT, padx=18, pady=10)
         # small subtitle on right
-        subtitle = tk.Label(banner, text="Interface graphique — gestion et diagnostics", font=FONT_SUB, bg=PALETTE["accent"], fg="#e6f0ff")
+        subtitle = tk.Label(banner, text="Interface graphique — gestion et diagnostics", font=self.scaled_font_sub, bg=PALETTE["accent"], fg="#e6f0ff")
         subtitle.pack(side=tk.RIGHT, padx=12)
-        
+
         # Status admin
         status_fg = "#10b981" if self.is_admin else "#f59e0b"
         self.status_label = tk.Label(
@@ -460,21 +537,21 @@ class PortScannerGUI:
             text="⚠️ Privilèges administrateur non détectés" if not self.is_admin else "✅ Privilèges administrateur détectés",
             fg=status_fg,
             bg=PALETTE["bg"],
-            font=FONT_SUB
+            font=self.scaled_font_sub
         )
         self.status_label.grid(row=1, column=0, columnspan=3, pady=(0, 6))
-        
+
         # Frame de configuration
         config_frame = ttk.LabelFrame(main_frame, text="Configuration du Scan", padding="10")
         config_frame.grid(row=2, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 10))
         config_frame.columnconfigure(1, weight=1)
-        
+
         # Cible
         ttk.Label(config_frame, text="Cible:").grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
         self.target_var = tk.StringVar(value=DEFAULT_TARGET)
         self.target_entry = ttk.Entry(config_frame, textvariable=self.target_var, width=20)
         self.target_entry.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=(0, 10))
-        
+
         # Ports
         ttk.Label(config_frame, text="Ports:").grid(row=0, column=2, sticky=tk.W, padx=(10, 5))
         self.ports_var = tk.StringVar(value="common")
@@ -485,11 +562,11 @@ class PortScannerGUI:
             width=15
         )
         self.ports_combo.grid(row=0, column=3, sticky=tk.W)
-        
+
         # Options
         options_frame = ttk.Frame(config_frame)
         options_frame.grid(row=1, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=(10, 0))
-        
+
         self.show_dynamic_var = tk.BooleanVar(value=False)
         self.show_dynamic_check = ttk.Checkbutton(
             options_frame,
@@ -497,11 +574,11 @@ class PortScannerGUI:
             variable=self.show_dynamic_var
         )
         self.show_dynamic_check.grid(row=0, column=0, sticky=tk.W)
-        
+
         # Boutons
         buttons_frame = ttk.Frame(main_frame)
         buttons_frame.grid(row=3, column=0, columnspan=3, pady=10)
-        
+
         self.scan_button = ttk.Button(
             buttons_frame,
             text="🚀 Démarrer le Scan",
@@ -509,7 +586,7 @@ class PortScannerGUI:
             style="Accent.TButton"
         )
         self.scan_button.grid(row=0, column=0, padx=(0, 10))
-        
+
         self.stop_button = ttk.Button(
             buttons_frame,
             text="⏹️ Arrêter",
@@ -518,7 +595,7 @@ class PortScannerGUI:
             style="TButton"
         )
         self.stop_button.grid(row=0, column=1, padx=(0, 10))
-        
+
         self.clear_button = ttk.Button(
             buttons_frame,
             text="🗑️ Effacer",
@@ -534,13 +611,13 @@ class PortScannerGUI:
             style="TButton"
         )
         self.help_button.grid(row=0, column=3, padx=(10,0))
-        
+
         # Résultats
         results_frame = ttk.LabelFrame(main_frame, text="Résultats du Scan", padding="10")
         results_frame.grid(row=4, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S))
         results_frame.columnconfigure(0, weight=1)
         results_frame.rowconfigure(0, weight=1)
-        
+
         # Treeview pour les résultats
         self.tree = ttk.Treeview(
             results_frame,
@@ -548,7 +625,7 @@ class PortScannerGUI:
             show="headings",
             height=15
         )
-        
+
         # Configuration des colonnes
         self.tree.heading("Port", text="Port")
         self.tree.heading("Service", text="Service")
@@ -556,39 +633,39 @@ class PortScannerGUI:
         self.tree.heading("Processus", text="Processus")
         self.tree.heading("Sécurité", text="Sécurité")
         self.tree.heading("Actions", text="Actions")
-        
+
         self.tree.column("Port", width=80, anchor=tk.CENTER)
         self.tree.column("Service", width=120)
         self.tree.column("PID", width=80, anchor=tk.CENTER)
         self.tree.column("Processus", width=200)
         self.tree.column("Sécurité", width=100, anchor=tk.CENTER)
         self.tree.column("Actions", width=150)
-        
+
         # Scrollbars
         v_scrollbar = ttk.Scrollbar(results_frame, orient=tk.VERTICAL, command=self.tree.yview)
         h_scrollbar = ttk.Scrollbar(results_frame, orient=tk.HORIZONTAL, command=self.tree.xview)
-        
+
         self.tree.configure(yscrollcommand=v_scrollbar.set, xscrollcommand=h_scrollbar.set)
-        
+
         self.tree.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         v_scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
         h_scrollbar.grid(row=1, column=0, sticky=(tk.W, tk.E))
-        
+
         # Bind double-click pour actions
         self.tree.bind("<Double-1>", self.on_port_double_click)
-        
+
         # Menu contextuel
         self.context_menu = tk.Menu(self.root, tearoff=0)
         self.context_menu.add_command(label="🔧 Arrêter le service", command=self.stop_service)
         self.context_menu.add_command(label="💀 Tuer le processus", command=self.kill_process)
         self.context_menu.add_command(label="📋 Copier les détails", command=self.copy_details)
         self.tree.bind("<Button-3>", self.show_context_menu)
-        
+
         # Barre de progression
         self.progress_frame = ttk.Frame(main_frame)
         self.progress_frame.grid(row=5, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(10, 0))
         self.progress_frame.columnconfigure(0, weight=1)
-        
+
         self.progress_var = tk.DoubleVar()
         self.progress_bar = ttk.Progressbar(
             self.progress_frame,
@@ -597,14 +674,19 @@ class PortScannerGUI:
             style="Colored.Horizontal.TProgressbar"
         )
         self.progress_bar.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 10))
-        
+
         self.progress_label = tk.Label(
             self.progress_frame,
             text="Prêt pour le scan",
             bg=PALETTE["bg"],
-            fg=PALETTE["muted"]
+            fg=PALETTE["muted"],
+            font=self.scaled_font_sub
         )
         self.progress_label.grid(row=0, column=1)
+
+    # Note: responsive auto-scaling of fonts was removed because it caused
+    # feedback loops in some environments. The UI uses grid weights and
+    # proportional column widths set at startup instead.
 
     def classify_port(self, port, service_name, pid_infos, banner, target_ip):
         """Classe un port et renvoie une étiquette lisible et un niveau de sévérité.
@@ -907,10 +989,29 @@ class PortScannerGUI:
         """Affiche les détails d'un port dans une fenêtre popup"""
         details_window = tk.Toplevel(self.root)
         details_window.title(f"Détails du Port {result['port']}")
-        details_window.geometry("800x600")
+        details_window.transient(self.root)
+        # Taille proportionnelle à l'écran
+        try:
+            sw = int(self.root.winfo_screenwidth() or 1200)
+            sh = int(self.root.winfo_screenheight() or 800)
+            w = max(600, int(sw * 0.6))
+            h = max(400, int(sh * 0.6))
+            details_window.geometry(f"{w}x{h}")
+        except Exception:
+            details_window.geometry("800x600")
         details_window.resizable(True, True)
         details_window.configure(bg='white')
-        details_window.transient(self.root)
+        # Center and set minimum size so buttons remain visible
+        try:
+            details_window.update_idletasks()
+            sx = details_window.winfo_screenwidth()
+            sy = details_window.winfo_screenheight()
+            dx = int((sx - w) / 2) if 'w' in locals() else int((sx - 800) / 2)
+            dy = int((sy - h) / 2) if 'h' in locals() else int((sy - 600) / 2)
+            details_window.geometry(f"+{dx}+{dy}")
+            details_window.minsize(int((w if 'w' in locals() else 800) * 0.6), int((h if 'h' in locals() else 600) * 0.5))
+        except Exception:
+            pass
         
         # Frame principal
         frame = tk.Frame(details_window, padx=10, pady=10)
@@ -920,12 +1021,20 @@ class PortScannerGUI:
         summary_label = tk.Label(
             frame,
             text=f"Port {result['port']} - {result['service_name']} sur {result['target_ip']}",
-            font=("Arial", 12, "bold")
+            font=self.scaled_font_sub,
+            bg='white',
+            fg=PALETTE['text']
         )
         summary_label.pack(pady=(0, 10))
         
         # Informations
-        info_text = scrolledtext.ScrolledText(frame, height=20, wrap=tk.WORD)
+        # Use a readable monospace/code font for details when possible
+        try:
+            code_font = ("Courier", max(10, int(self.scaled_font_ui[1]) if len(self.scaled_font_ui) > 1 else 10))
+        except Exception:
+            code_font = ("Courier", 10)
+
+        info_text = scrolledtext.ScrolledText(frame, height=20, wrap=tk.WORD, font=code_font)
         info_text.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
 
         # Construire un affichage clair et robuste des détails
@@ -987,48 +1096,55 @@ class PortScannerGUI:
         # Mettre à jour l'affichage
         details_window.update()
         
-        # Boutons d'action
+        # Boutons d'action (utiliser polices mises à l'échelle)
         buttons_frame = tk.Frame(frame)
         buttons_frame.pack(fill=tk.X, pady=(10, 0))
-        
+
+        btn_font = self.scaled_font_ui
+
         # Bouton arrêter service
         stop_state = tk.NORMAL if self.is_admin and result['service_cmd'] else tk.DISABLED
         tk.Button(
             buttons_frame,
             text=f"🔧 Arrêter {result['service_cmd'] or 'service'}",
             command=lambda: self.stop_service_action(result, details_window),
-            state=stop_state
+            state=stop_state,
+            font=btn_font
         ).pack(side=tk.LEFT, padx=(0, 5))
-        
+
         # Bouton tuer processus
         kill_state = tk.NORMAL if self.is_admin and result['pid_infos'] else tk.DISABLED
         tk.Button(
             buttons_frame,
             text="💀 Tuer les processus",
             command=lambda: self.kill_process_action(result, details_window),
-            state=kill_state
+            state=kill_state,
+            font=btn_font
         ).pack(side=tk.LEFT, padx=(0, 5))
-        
+
         tk.Button(
             buttons_frame,
             text="📋 Copier",
-            command=lambda: self.copy_to_clipboard(details)
+            command=lambda: self.copy_to_clipboard(details),
+            font=btn_font
         ).pack(side=tk.LEFT, padx=(0, 5))
-        
+
         tk.Button(
             buttons_frame,
             text="Fermer",
-            command=details_window.destroy
+            command=details_window.destroy,
+            font=btn_font
         ).pack(side=tk.RIGHT)
         
-        # Mettre à jour l'affichage et tenter grab_set de façon sûre
+        # Mettre à jour l'affichage and ensure focus so buttons are clickable
         try:
             details_window.update_idletasks()
             details_window.wait_visibility()
+            details_window.lift()
+            details_window.focus_force()
             details_window.grab_set()
         except Exception:
-            # Ne pas raser l'application si grab_set échoue (fenêtre non visible / XAUTH).
-            # On continue et la fenêtre restera fonctionnelle sans grab.
+            # If grab_set fails (non-graphical X session), continue without modal grab
             pass
     
     def stop_service_action(self, result, parent_window):
@@ -1216,15 +1332,30 @@ class PortScannerGUI:
         """Affiche la fenêtre d'aide (contenu embarqué depuis examples.sh)."""
         help_win = tk.Toplevel(self.root)
         help_win.title("Aide - Exemples et utilisation")
-        help_win.geometry("800x600")
         help_win.transient(self.root)
-        txt = scrolledtext.ScrolledText(help_win, wrap=tk.WORD)
+        # Taille proportionnelle à l'écran
+        try:
+            sw = int(self.root.winfo_screenwidth() or 1200)
+            sh = int(self.root.winfo_screenheight() or 800)
+            w = max(700, int(sw * 0.6))
+            h = max(480, int(sh * 0.6))
+            help_win.geometry(f"{w}x{h}")
+        except Exception:
+            help_win.geometry("800x600")
+
+        txt = scrolledtext.ScrolledText(help_win, wrap=tk.WORD, font=("Courier", max(10, int(self.scaled_font_ui[1]) if len(self.scaled_font_ui) > 1 else 10)))
         txt.pack(fill=tk.BOTH, expand=True, padx=6, pady=6)
 
         # Tags et styles pour le texte coloré
         heading_font = tkfont.Font(txt, txt.cget("font"))
-        heading_font.configure(weight="bold", size=11)
-        code_font = tkfont.Font(family="Courier", size=10)
+        try:
+            heading_font.configure(weight="bold", size=max(10, int(self.scaled_font_sub[1]) if len(self.scaled_font_sub) > 1 else 11))
+        except Exception:
+            heading_font.configure(weight="bold", size=11)
+        try:
+            code_font = tkfont.Font(family="Courier", size=max(10, int(self.scaled_font_ui[1]) if len(self.scaled_font_ui) > 1 else 10))
+        except Exception:
+            code_font = tkfont.Font(family="Courier", size=10)
 
         txt.tag_configure("heading", foreground="#1f4e79", font=heading_font)
         txt.tag_configure("code", background="#f5f5f5", font=code_font, foreground="#222222")
@@ -1257,7 +1388,26 @@ class PortScannerGUI:
             txt.insert(tk.END, "Aide non disponible.")
             txt.config(state=tk.DISABLED)
 
-        ttk.Button(help_win, text="Fermer", command=help_win.destroy).pack(pady=6)
+        # Place the close button in a small bottom frame so it's always visible
+        btn_frame = ttk.Frame(help_win)
+        btn_frame.pack(fill=tk.X)
+        ttk.Button(btn_frame, text="Fermer", command=help_win.destroy).pack(side=tk.RIGHT, padx=6, pady=6)
+
+        # Ensure the help window is visible and raised (avoid grab_set which can be blocked)
+        try:
+            help_win.deiconify()
+            help_win.lift()
+            # Temporarily set topmost to ensure window manager raises it
+            try:
+                help_win.attributes("-topmost", True)
+                help_win.update()
+                help_win.attributes("-topmost", False)
+            except Exception:
+                # attributes may not be supported on some WMs
+                pass
+            help_win.focus_force()
+        except Exception:
+            pass
 
 def main():
     """Point d'entrée principal"""
