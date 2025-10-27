@@ -77,13 +77,22 @@ python -m pip install pyinstaller
 
 Write-Host '==> Lancement de PyInstaller (onefile)'
 # Pour inclure des fichiers additionnels, utilisez --add-data "src;dest"
-pyinstaller --noconfirm --name $distName --onefile $src
+# Build as windowed GUI (no console) and onefile for quick test; change to --onedir if you prefer folder
+pyinstaller --noconfirm --name $distName --onefile --windowed $src
 
 Write-Host '==> Construction terminée. Artéfacts dans .\dist\'
 $exePath = Join-Path 'dist' $distName
 if (Test-Path $exePath) {
     Write-Host "Executable: $exePath"
     Write-Host "Vous pouvez l'exécuter depuis PowerShell : .\dist\$distName.exe"
+    # Proposer de lancer maintenant en arrière-plan (sans laisser le terminal ouvert)
+    $launch = Read-Host "Voulez-vous lancer l'application maintenant en arrière-plan ? [y/N]"
+    if ($launch -match '^[Yy]') {
+        $fullPath = Join-Path (Resolve-Path .\dist\$distName).Path "$distName.exe"
+        Write-Host "Lancement en arrière-plan..."
+        Start-Process -FilePath $fullPath -WindowStyle Hidden -WorkingDirectory (Join-Path (Get-Location) 'dist' )
+        Write-Host "Application lancée en arrière-plan. Le terminal peut être fermé." -ForegroundColor Green
+    }
 } else {
     Write-Host 'Executable introuvable. Vérifiez la sortie de PyInstaller.' -ForegroundColor Red
     exit 1
