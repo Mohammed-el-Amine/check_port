@@ -4,7 +4,7 @@
 import socket, sys, time, platform, subprocess, os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-DEFAULT_TARGET = "192.168.1.36"
+DEFAULT_TARGET = "localhost"
 DEFAULT_TIMEOUT = 0.8
 DEFAULT_WORKERS = 500
 COMMON_PORTS = [21,22,23,25,53,80,88,110,111,123,135,139,143,161,389,443,445,465,514,631,993,995,1433,1521,3306,3389,5900,8080,8443,8000]
