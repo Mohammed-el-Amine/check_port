@@ -125,7 +125,7 @@ PALETTE = {
     # macOS Sonoma-like palette
     "bg": "#f3f4f6",        # window background
     "card": "#ffffff",      # card / panel background
-    "accent": "#0a84ff",    # macOS blue
+    "accent": "#9ca3af",    # soft gray accent
     "muted": "#6b7280",     # muted text
     "text": "#0b1320",      # primary text
     "danger": "#ff375f",    # macOS red
