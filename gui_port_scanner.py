@@ -121,6 +121,23 @@ class PortScannerGUI:
                 os.kill(int(parent_pid), 15)
             except Exception:
                 pass
+
+        # If running as root, kill any remaining non-root instances of this script
+        try:
+            if os.geteuid() == 0:
+                out = subprocess.check_output(["ps", "-eo", "pid,uid,args"], text=True, errors="ignore")
+                for line in out.splitlines():
+                    parts = line.strip().split(None, 2)
+                    if len(parts) != 3:
+                        continue
+                    pid, uid, args = parts
+                    if "gui_port_scanner.py" in args and uid != "0":
+                        try:
+                            os.kill(int(pid), 15)
+                        except Exception:
+                            pass
+        except Exception:
+            pass
         self.root.title("Scanner de Ports Avancé - Interface Graphique")
         self.root.geometry("1200x800")
         # Use the palette background for a macOS-like window
