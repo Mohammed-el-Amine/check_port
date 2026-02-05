@@ -1460,24 +1460,41 @@ class PortScannerGUI:
         picker = tk.Toplevel(self.root)
         picker.title("Choisir la langue / Choose language")
         picker.transient(self.root)
+        # Taille proportionnelle pour éviter le texte tronqué
         try:
-            picker.geometry("420x160")
+            sw = int(self.root.winfo_screenwidth() or 1200)
+            sh = int(self.root.winfo_screenheight() or 800)
+            w = max(520, int(sw * 0.45))
+            h = max(220, int(sh * 0.25))
+            picker.geometry(f"{w}x{h}")
         except Exception:
-            pass
-        picker.minsize(380, 150)
+            picker.geometry("520x220")
+        picker.minsize(520, 200)
         picker.columnconfigure(0, weight=1)
         picker.rowconfigure(1, weight=1)
 
-        ttk.Label(picker, text="Choisissez la langue de l'aide / Choose help language:").grid(row=0, column=0, pady=(18, 12))
+        label = ttk.Label(
+            picker,
+            text="Choisissez la langue de l'aide / Choose help language:",
+            anchor="center",
+            justify="center",
+            wraplength=max(420, int((w if 'w' in locals() else 520) * 0.9))
+        )
+        label.grid(row=0, column=0, sticky="ew", padx=16, pady=(18, 12))
         btn_frame = ttk.Frame(picker)
-        btn_frame.grid(row=1, column=0)
+        btn_frame.grid(row=1, column=0, sticky="ew", pady=(0, 12))
+        # Center buttons
+        btn_frame.columnconfigure(0, weight=1)
+        btn_frame.columnconfigure(1, weight=0)
+        btn_frame.columnconfigure(2, weight=0)
+        btn_frame.columnconfigure(3, weight=1)
 
         def pick(lang):
             lang_choice["value"] = lang
             picker.destroy()
 
-        ttk.Button(btn_frame, text="Français", command=lambda: pick("fr"), style="Accent.TButton").pack(side=tk.LEFT, padx=8)
-        ttk.Button(btn_frame, text="English", command=lambda: pick("en"), style="TButton").pack(side=tk.LEFT, padx=8)
+        ttk.Button(btn_frame, text="Français", command=lambda: pick("fr"), style="Accent.TButton").grid(row=0, column=1, padx=8)
+        ttk.Button(btn_frame, text="English", command=lambda: pick("en"), style="TButton").grid(row=0, column=2, padx=8)
 
         try:
             picker.grab_set()
