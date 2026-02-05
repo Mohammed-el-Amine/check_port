@@ -106,6 +106,14 @@ except ImportError:
 class PortScannerGUI:
     def __init__(self, root):
         self.root = root
+        # If launched with an admin-ready marker, create it immediately
+        marker = os.environ.get("SCAN_PORT_ADMIN_READY")
+        if marker:
+            try:
+                with open(marker, "w") as f:
+                    f.write("ok")
+            except Exception:
+                pass
         self.root.title("Scanner de Ports Avancé - Interface Graphique")
         self.root.geometry("1200x800")
         # Use the palette background for a macOS-like window
@@ -374,6 +382,14 @@ class PortScannerGUI:
 
                 # Fallback: open a terminal emulator that runs sudo so the user sees a password prompt
                 def launch_terminal_sudo(exe, script_path):
+                    marker = f"/tmp/scan_port_admin_ready_{os.getpid()}"
+                    # ensure old marker doesn't exist
+                    try:
+                        if os.path.exists(marker):
+                            os.remove(marker)
+                    except Exception:
+                        pass
+
                     terminals = [
                         ("x-terminal-emulator", ["-e", "bash", "-lc"]),
                         ("gnome-terminal", ["--", "bash", "-lc"]),
@@ -385,7 +401,7 @@ class PortScannerGUI:
                         ("xterm", ["-e"]),
                     ]
 
-                    sudo_cmd = f"sudo -k {exe} '{script_path}'"
+                    sudo_cmd = f"sudo -k SCAN_PORT_ADMIN_READY={marker} {exe} '{script_path}'"
                     def elevated_process_started():
                         try:
                             out = subprocess.check_output(["ps", "-eo", "uid,args"], text=True, errors="ignore")
@@ -407,13 +423,20 @@ class PortScannerGUI:
                         try:
                             deadline = time.time() + 120
                             while time.time() < deadline:
+                                # Close when the admin instance signals readiness
+                                if os.path.exists(marker):
+                                    try:
+                                        self.root.after(0, self.root.quit)
+                                    except Exception:
+                                        pass
+                                    return
                                 if elevated_process_started():
                                     try:
                                         self.root.after(0, self.root.quit)
                                     except Exception:
                                         pass
                                     return
-                                time.sleep(0.5)
+                                time.sleep(0.3)
                         except Exception:
                             pass
 
