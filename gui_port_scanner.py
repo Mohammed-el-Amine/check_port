@@ -186,7 +186,7 @@ class PortScannerGUI:
         except Exception:
             pass
         self.root.title("Scanner de Ports Avancé - Interface Graphique")
-        self.root.geometry("1200x800")
+        self.root.geometry("1120x740")
         # Use the palette background for a macOS-like window
         try:
             self.root.configure(bg=PALETTE["bg"])
@@ -586,18 +586,18 @@ class PortScannerGUI:
         style.configure("TLabel", background=PALETTE["bg"], foreground=PALETTE["text"], font=self.scaled_font_ui)
 
         # Buttons: macOS-like flat buttons with blue accent for primary actions
-        style.configure("TButton", font=self.scaled_font_ui, padding=6, background=PALETTE["card"], borderwidth=0, focusthickness=0)
+        style.configure("TButton", font=self.scaled_font_ui, padding=(6, 4), background=PALETTE["card"], borderwidth=0, focusthickness=0)
         style.configure("Accent.TButton", background=PALETTE["accent"], foreground="#ffffff", relief="flat")
         style.map("Accent.TButton",
                   background=[('active', '#0666d6'), ('disabled', '#94a3b8')],
                   foreground=[('disabled', '#d1d5db')])
 
-        # Treeview / headings - clean, white rows with subtle separators
+        # Treeview / headings - compact professional rows
         style.configure("Treeview",
                         background=PALETTE["card"],
                         fieldbackground=PALETTE["card"],
                         foreground=PALETTE["text"],
-                        rowheight=26,
+                        rowheight=22,
                         font=self.scaled_font_ui)
         # Build heading font from scaled sub font (ensure bold)
         try:
@@ -691,7 +691,7 @@ class PortScannerGUI:
 
         # Boutons
         buttons_frame = ttk.Frame(main_frame)
-        buttons_frame.grid(row=3, column=0, columnspan=3, pady=10)
+        buttons_frame.grid(row=3, column=0, columnspan=3, pady=6)
 
         self.scan_button = ttk.Button(
             buttons_frame,
