@@ -329,18 +329,20 @@ class PortScannerGUI:
                         # fallthrough to other methods
                         pass
 
-                # Try pkexec first (preferred polkit flow). Use subprocess.run with a short timeout
+                # Prefer terminal-based sudo on Linux to guarantee a visible password prompt
+                if hasattr(self, "_restart_with_terminal_sudo"):
+                    if self._restart_with_terminal_sudo(exe, script_path):
+                        return
+
+                # Try pkexec as a secondary option (polkit GUI)
                 pkexec_path = shutil.which("pkexec")
                 if pkexec_path:
                     try:
-                        # Preserve essential environment variables so pkexec/polkit can show a GUI prompt
                         env = os.environ.copy()
                         for k in ("DISPLAY", "XAUTHORITY", "DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR"):
                             if k in os.environ:
                                 env[k] = os.environ[k]
 
-                        # Build a shell command that preserves essential env vars and execs the python process.
-                        # Use sh -c under pkexec so the environment is set in the elevated process.
                         def mk_env_assignment(k):
                             v = env.get(k)
                             return f'{k}={shlex.quote(v)}' if v is not None else None
@@ -351,70 +353,17 @@ class PortScannerGUI:
                             if a:
                                 parts.append(a)
 
-                        # Build the exec string
                         exec_cmd = ' '.join(parts + [f'exec {shlex.quote(exe)} {shlex.quote(script_path)}'])
-
-                        # Call pkexec to run: /bin/sh -c "<env...> exec 'python' 'script'"
                         shell_runner = ['/bin/sh', '-c', exec_cmd]
                         cmd = [pkexec_path] + shell_runner
+                        subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
 
-                        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
-
-                        # Monitor: wait for the elevated process to actually start instead of using a fixed delay.
-                        def elevated_process_started():
-                            try:
-                                out = subprocess.check_output(["ps", "-eo", "uid,args"], text=True, errors="ignore")
-                                for line in out.splitlines():
-                                    line = line.strip()
-                                    if not line:
-                                        continue
-                                    parts = line.split(None, 1)
-                                    if len(parts) != 2:
-                                        continue
-                                    uid, args = parts
-                                    if uid == "0" and script_path in args:
-                                        return True
-                            except Exception:
-                                pass
-                            return False
-
-                        def monitor_and_close(p):
-                            try:
-                                deadline = time.time() + 10
-                                while time.time() < deadline:
-                                    if elevated_process_started():
-                                        try:
-                                            self.root.after(0, self.root.quit)
-                                        except Exception:
-                                            pass
-                                        return
-                                    if p.poll() is not None:
-                                        break
-                                    time.sleep(0.5)
-
-                                # If we reach here, pkexec did not launch an elevated GUI.
-                                try:
-                                    err = p.stderr.read().decode(errors="ignore")
-                                except Exception:
-                                    err = "<no stderr>"
-                                print(f"pkexec did not start elevated process, falling back to terminal. {err}")
-
-                                # Fallback to terminal-based sudo to guarantee a password prompt.
-                                try:
-                                    self.root.after(0, lambda: messagebox.showinfo(
-                                        "Relance en mode admin",
-                                        "Impossible d'afficher la demande de mot de passe en mode graphique.\n"
-                                        "Ouverture d'un terminal pour relancer avec sudo."
-                                    ))
-                                except Exception:
-                                    pass
-
-                                # Trigger terminal fallback now
-                                self._restart_with_terminal_sudo(exe, script_path)
-                            except Exception as e:
-                                print(f"monitor thread error: {e}")
-
-                        threading.Thread(target=monitor_and_close, args=(proc,), daemon=True).start()
+                        # Do NOT close the window until the user confirms the admin instance opened.
+                        messagebox.showinfo(
+                            "Relance en mode admin",
+                            "Une demande d'authentification peut s'afficher.\n"
+                            "Si rien ne se passe, utilisez le bouton et relancez avec sudo depuis un terminal."
+                        )
                         return
                     except Exception as e:
                         print(f"pkexec invocation error: {e}")
@@ -431,7 +380,7 @@ class PortScannerGUI:
                             continue
 
                 # Fallback: open a terminal emulator that runs sudo so the user sees a password prompt
-                def launch_terminal_sudo():
+                def launch_terminal_sudo(exe, script_path):
                     terminals = [
                         ("x-terminal-emulator", ["-e", "bash", "-lc"]),
                         ("gnome-terminal", ["--", "bash", "-lc"]),
@@ -449,11 +398,24 @@ class PortScannerGUI:
                             try:
                                 cmd = [term] + extra_args + [f"{sudo_cmd}; echo; read -n1 -s -r -p 'Press any key to close...'" ]
                                 subprocess.Popen(cmd)
+                                # Close the current GUI only if the terminal was launched
                                 self.root.quit()
                                 return True
                             except Exception:
                                 continue
+                    # If no terminal could be launched, keep GUI open
+                    messagebox.showerror(
+                        "Relance impossible",
+                        "Aucun terminal graphique n'a pu être lancé pour le sudo.\n"
+                        "L'application continue en mode limité."
+                    )
                     return False
+
+                # Expose helper for pkexec fallback
+                self._restart_with_terminal_sudo = launch_terminal_sudo
+
+                if launch_terminal_sudo(exe, script_path):
+                    return
 
                 # Keep a helper for reuse by pkexec fallback
                 self._restart_with_terminal_sudo = launch_terminal_sudo
