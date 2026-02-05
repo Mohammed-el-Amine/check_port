@@ -122,13 +122,13 @@ Questions / improvements
 
 # Palette macOS-like (light)
 PALETTE = {
-    # Futuriste dark palette
-    "bg": "#0b0f19",        # window background
-    "card": "#111827",      # card / panel background
-    "accent": "#7c3aed",    # violet accent
-    "muted": "#94a3b8",     # muted text
-    "text": "#e5e7eb",      # primary text (light)
-    "danger": "#fb7185",    # soft red
+    # Apple-like light palette
+    "bg": "#f5f6f8",        # window background
+    "card": "#ffffff",      # card / panel background
+    "accent": "#0a84ff",    # macOS blue
+    "muted": "#6b7280",     # muted text
+    "text": "#0f172a",      # primary text
+    "danger": "#ff375f",    # macOS red
 }
 
 # Polices (San Francisco preferred with fallbacks)
@@ -587,25 +587,25 @@ class PortScannerGUI:
         style.configure("TLabelframe", background=PALETTE["bg"], foreground=PALETTE["text"], font=self.scaled_font_ui)
         style.configure("TLabelframe.Label", background=PALETTE["bg"], foreground=PALETTE["muted"], font=self.scaled_font_ui)
 
-        # Buttons
-        style.configure("TButton", font=self.scaled_font_ui, padding=(6, 4), background=PALETTE["card"], borderwidth=0, focusthickness=0, foreground=PALETTE["text"])
+        # Buttons (macOS-like)
+        style.configure("TButton", font=self.scaled_font_ui, padding=(8, 5), background=PALETTE["card"], borderwidth=0, focusthickness=0, foreground=PALETTE["text"])
         style.configure("Accent.TButton", background=PALETTE["accent"], foreground="#ffffff", relief="flat")
         style.map("Accent.TButton",
-                  background=[('active', '#6d28d9'), ('disabled', '#4b5563')],
-                  foreground=[('disabled', '#d1d5db')])
+                  background=[('active', '#0077ed'), ('disabled', '#cbd5e1')],
+                  foreground=[('disabled', '#e5e7eb')])
 
         # Inputs
         style.configure("TEntry", fieldbackground=PALETTE["card"], foreground=PALETTE["text"], background=PALETTE["card"], insertcolor=PALETTE["text"], borderwidth=0)
         style.configure("TCombobox", fieldbackground=PALETTE["card"], foreground=PALETTE["text"], background=PALETTE["card"], arrowsize=12)
 
-        # Treeview / headings - compact professional rows
+        # Treeview / headings - clean white with subtle header
         style.configure("Treeview",
                         background=PALETTE["card"],
                         fieldbackground=PALETTE["card"],
                         foreground=PALETTE["text"],
-                        rowheight=22,
+                        rowheight=24,
                         font=self.scaled_font_ui)
-        style.configure("Treeview.Heading", background="#0f172a", foreground=PALETTE["text"], font=self.scaled_font_sub)
+        style.configure("Treeview.Heading", background="#eef2f7", foreground=PALETTE["text"], font=self.scaled_font_sub)
         # Build heading font from scaled sub font (ensure bold)
         try:
             heading_family = self.scaled_font_sub[0]
