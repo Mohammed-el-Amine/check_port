@@ -36,7 +36,7 @@ Guide d'utilisation - Scanner de Ports (Interface Graphique)
 3) Contrôles principaux
 - 🚀 Démarrer le Scan : lance le scan en arrière-plan et affiche la progression.
 - ⏹️ Arrêter : stoppe le scan en cours (les résultats déjà trouvés restent affichés).
-- �️ Effacer : supprime toutes les lignes de résultats affichées.
+- 🗑️ Effacer : supprime toutes les lignes de résultats affichées.
 - ❓ Aide : ouvre cette fenêtre d'aide.
 
 4) Résultats
@@ -70,6 +70,53 @@ Guide d'utilisation - Scanner de Ports (Interface Graphique)
 Questions / amélioration
 - Si vous voulez que j'ajoute des info-bulles (tooltips) sur les boutons ou l'option
     pour afficher le chemin complet de l'exécutable (via psutil), dites-le et je l'implémente.
+
+"""
+
+HELP_TEXT_EN = """
+User Guide - Port Scanner (GUI)
+===============================
+
+1) Basic configuration
+- Target: enter an IP or hostname (e.g., localhost, 192.168.1.1).
+- Ports: choose a preset (common, top1000, top5000, all, 1-1024),
+    or enter a custom list/range (e.g., 22,80,443 or 8000-8100).
+
+2) Options
+- "Show dynamic ports": include ephemeral ports (32768-65535).
+    Hidden by default to reduce noise.
+
+3) Main controls
+- 🚀 Start Scan: runs the scan in background and shows progress.
+- ⏹️ Stop: stops the current scan (results already found stay visible).
+- 🗑️ Clear: clears all results.
+- ❓ Help: opens this help window.
+
+4) Results
+- Table columns: Port | Service | PID | Process | Security | Actions
+- Double-click a row: opens details (banner, PIDs, cmdline, actions).
+- Right-click: quick actions (stop service, kill process, copy details).
+
+5) Actions requiring privileges
+- To see full local PIDs and stop/kill processes, run as administrator.
+- On Linux, "Relaunch with sudo" will restart the app as root (password prompt in terminal).
+
+6) Details & best practices
+- Details show banner (if any), PID list, user and command line (if available).
+- Prefer stopping services cleanly (e.g., systemctl stop <service>) before killing.
+- Warning: killing processes may cause data loss.
+
+7) Quick troubleshooting
+- If sudo relaunch fails, run manually:
+        sudo python3 gui_port_scanner.py
+- If PIDs are missing after sudo, ensure you have permissions and tools (ss/lsof).
+
+8) Examples
+- Scan common web ports on localhost: choose 'common' then Start.
+- Scan 1-1024: choose '1-1024' then Start.
+
+Questions / improvements
+- Want tooltips or full executable path (via psutil)? Tell me and I’ll add it.
 
 """
 
@@ -1396,9 +1443,39 @@ class PortScannerGUI:
         messagebox.showinfo("Copié", "Informations copiées dans le presse-papier")
 
     def show_help_window(self):
-        """Affiche la fenêtre d'aide (contenu embarqué depuis examples.sh)."""
+        """Affiche la fenêtre d'aide avec choix de langue."""
+        # Language picker
+        lang_choice = {"value": "fr"}
+        picker = tk.Toplevel(self.root)
+        picker.title("Choisir la langue / Choose language")
+        picker.transient(self.root)
+        try:
+            picker.geometry("420x160")
+        except Exception:
+            pass
+
+        ttk.Label(picker, text="Choisissez la langue de l'aide / Choose help language:").pack(pady=(18, 12))
+        btn_frame = ttk.Frame(picker)
+        btn_frame.pack()
+
+        def pick(lang):
+            lang_choice["value"] = lang
+            picker.destroy()
+
+        ttk.Button(btn_frame, text="Français", command=lambda: pick("fr"), style="Accent.TButton").pack(side=tk.LEFT, padx=8)
+        ttk.Button(btn_frame, text="English", command=lambda: pick("en"), style="TButton").pack(side=tk.LEFT, padx=8)
+
+        try:
+            picker.grab_set()
+        except Exception:
+            pass
+        picker.wait_window()
+
+        help_text = HELP_TEXT if lang_choice["value"] == "fr" else HELP_TEXT_EN
+        title = "Aide - Exemples et utilisation" if lang_choice["value"] == "fr" else "Help - Examples & usage"
+
         help_win = tk.Toplevel(self.root)
-        help_win.title("Aide - Exemples et utilisation")
+        help_win.title(title)
         help_win.transient(self.root)
         # Taille proportionnelle à l'écran
         try:
@@ -1432,7 +1509,7 @@ class PortScannerGUI:
         # Insérer le HELP_TEXT ligne par ligne et appliquer des tags simples
         try:
             txt.config(state=tk.NORMAL)
-            for line in HELP_TEXT.splitlines():
+            for line in help_text.splitlines():
                 stripped = line.strip()
                 start_index = txt.index(tk.INSERT)
                 txt.insert(tk.END, line + "\n")
