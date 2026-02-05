@@ -393,13 +393,44 @@ class PortScannerGUI:
                     ]
 
                     sudo_cmd = f"sudo -k {exe} '{script_path}'"
+                    def elevated_process_started():
+                        try:
+                            out = subprocess.check_output(["ps", "-eo", "uid,args"], text=True, errors="ignore")
+                            for line in out.splitlines():
+                                line = line.strip()
+                                if not line:
+                                    continue
+                                parts = line.split(None, 1)
+                                if len(parts) != 2:
+                                    continue
+                                uid, args = parts
+                                if uid == "0" and script_path in args:
+                                    return True
+                        except Exception:
+                            pass
+                        return False
+
+                    def close_when_elevated():
+                        try:
+                            deadline = time.time() + 120
+                            while time.time() < deadline:
+                                if elevated_process_started():
+                                    try:
+                                        self.root.after(0, self.root.quit)
+                                    except Exception:
+                                        pass
+                                    return
+                                time.sleep(0.5)
+                        except Exception:
+                            pass
+
                     for term, extra_args in terminals:
                         if shutil.which(term):
                             try:
                                 cmd = [term] + extra_args + [f"{sudo_cmd}; echo; read -n1 -s -r -p 'Press any key to close...'" ]
                                 subprocess.Popen(cmd)
-                                # Close the current GUI only if the terminal was launched
-                                self.root.quit()
+                                # Close the current GUI when the elevated instance actually starts
+                                threading.Thread(target=close_when_elevated, daemon=True).start()
                                 return True
                             except Exception:
                                 continue
