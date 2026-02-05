@@ -122,12 +122,12 @@ Questions / improvements
 
 # Palette macOS-like (light)
 PALETTE = {
-    # Apple-like light palette
-    "bg": "#f5f6f8",        # window background
+    # macOS Sonoma-like palette
+    "bg": "#f3f4f6",        # window background
     "card": "#ffffff",      # card / panel background
     "accent": "#0a84ff",    # macOS blue
     "muted": "#6b7280",     # muted text
-    "text": "#0f172a",      # primary text
+    "text": "#0b1320",      # primary text
     "danger": "#ff375f",    # macOS red
 }
 
@@ -587,25 +587,25 @@ class PortScannerGUI:
         style.configure("TLabelframe", background=PALETTE["bg"], foreground=PALETTE["text"], font=self.scaled_font_ui)
         style.configure("TLabelframe.Label", background=PALETTE["bg"], foreground=PALETTE["muted"], font=self.scaled_font_ui)
 
-        # Buttons (macOS-like)
+        # Buttons (Sonoma-like)
         style.configure("TButton", font=self.scaled_font_ui, padding=(8, 5), background=PALETTE["card"], borderwidth=0, focusthickness=0, foreground=PALETTE["text"])
         style.configure("Accent.TButton", background=PALETTE["accent"], foreground="#ffffff", relief="flat")
         style.map("Accent.TButton",
-                  background=[('active', '#0077ed'), ('disabled', '#cbd5e1')],
+                  background=[('active', '#0b74ff'), ('disabled', '#cbd5e1')],
                   foreground=[('disabled', '#e5e7eb')])
 
         # Inputs
         style.configure("TEntry", fieldbackground=PALETTE["card"], foreground=PALETTE["text"], background=PALETTE["card"], insertcolor=PALETTE["text"], borderwidth=0)
         style.configure("TCombobox", fieldbackground=PALETTE["card"], foreground=PALETTE["text"], background=PALETTE["card"], arrowsize=12)
 
-        # Treeview / headings - clean white with subtle header
+        # Treeview / headings - Sonoma clean header
         style.configure("Treeview",
                         background=PALETTE["card"],
                         fieldbackground=PALETTE["card"],
                         foreground=PALETTE["text"],
                         rowheight=24,
                         font=self.scaled_font_ui)
-        style.configure("Treeview.Heading", background="#eef2f7", foreground=PALETTE["text"], font=self.scaled_font_sub)
+        style.configure("Treeview.Heading", background="#f1f3f7", foreground=PALETTE["text"], font=self.scaled_font_sub)
         # Build heading font from scaled sub font (ensure bold)
         try:
             heading_family = self.scaled_font_sub[0]
