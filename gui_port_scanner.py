@@ -380,7 +380,7 @@ class PortScannerGUI:
 
                         def monitor_and_close(p):
                             try:
-                                deadline = time.time() + 90
+                                deadline = time.time() + 10
                                 while time.time() < deadline:
                                     if elevated_process_started():
                                         try:
@@ -389,13 +389,28 @@ class PortScannerGUI:
                                             pass
                                         return
                                     if p.poll() is not None:
-                                        try:
-                                            err = p.stderr.read().decode(errors="ignore")
-                                        except Exception:
-                                            err = "<no stderr>"
-                                        print(f"pkexec exited (rc={p.returncode}): {err}")
-                                        return
+                                        break
                                     time.sleep(0.5)
+
+                                # If we reach here, pkexec did not launch an elevated GUI.
+                                try:
+                                    err = p.stderr.read().decode(errors="ignore")
+                                except Exception:
+                                    err = "<no stderr>"
+                                print(f"pkexec did not start elevated process, falling back to terminal. {err}")
+
+                                # Fallback to terminal-based sudo to guarantee a password prompt.
+                                try:
+                                    self.root.after(0, lambda: messagebox.showinfo(
+                                        "Relance en mode admin",
+                                        "Impossible d'afficher la demande de mot de passe en mode graphique.\n"
+                                        "Ouverture d'un terminal pour relancer avec sudo."
+                                    ))
+                                except Exception:
+                                    pass
+
+                                # Trigger terminal fallback now
+                                self._restart_with_terminal_sudo(exe, script_path)
                             except Exception as e:
                                 print(f"monitor thread error: {e}")
 
@@ -416,31 +431,35 @@ class PortScannerGUI:
                             continue
 
                 # Fallback: open a terminal emulator that runs sudo so the user sees a password prompt
-                terminals = [
-                    ("gnome-terminal", ["--", "bash", "-lc"]),
-                    ("konsole", ["-e"]),
-                    ("xfce4-terminal", ["--command"]),
-                    ("mate-terminal", ["--", "bash", "-lc"]),
-                    ("lxterminal", ["-e"]),
-                    ("terminator", ["-x"]),
-                    ("xterm", ["-e"]),
-                ]
+                def launch_terminal_sudo():
+                    terminals = [
+                        ("x-terminal-emulator", ["-e", "bash", "-lc"]),
+                        ("gnome-terminal", ["--", "bash", "-lc"]),
+                        ("konsole", ["-e"]),
+                        ("xfce4-terminal", ["--command"]),
+                        ("mate-terminal", ["--", "bash", "-lc"]),
+                        ("lxterminal", ["-e"]),
+                        ("terminator", ["-x"]),
+                        ("xterm", ["-e"]),
+                    ]
 
-                sudo_cmd = f"sudo {exe} '{script_path}'"
-                for term, extra_args in terminals:
-                    if shutil.which(term):
-                        try:
-                            # Construct command depending on terminal
-                            if term == "xterm":
-                                cmd = [term] + extra_args + [f"{sudo_cmd}; echo; read -n1 -s -r -p 'Press any key to close...'"]
-                            else:
-                                # Use bash -lc style where supported so we can keep the terminal open briefly
-                                cmd = [term] + extra_args + [f"{sudo_cmd}; echo; read -n1 -s -r -p 'Press any key to close...'"]
-                            subprocess.Popen(cmd)
-                            self.root.quit()
-                            return
-                        except Exception:
-                            continue
+                    sudo_cmd = f"sudo -k {exe} '{script_path}'"
+                    for term, extra_args in terminals:
+                        if shutil.which(term):
+                            try:
+                                cmd = [term] + extra_args + [f"{sudo_cmd}; echo; read -n1 -s -r -p 'Press any key to close...'" ]
+                                subprocess.Popen(cmd)
+                                self.root.quit()
+                                return True
+                            except Exception:
+                                continue
+                    return False
+
+                # Keep a helper for reuse by pkexec fallback
+                self._restart_with_terminal_sudo = launch_terminal_sudo
+
+                if launch_terminal_sudo():
+                    return
 
                 # Last resort: execvp with sudo (will open terminal if user launched from one)
                 messagebox.showinfo(
