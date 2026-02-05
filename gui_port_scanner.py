@@ -360,22 +360,42 @@ class PortScannerGUI:
 
                         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
 
-                        # Monitor: wait a little and if pkexec still runs, close GUI to let the auth dialog be used.
+                        # Monitor: wait for the elevated process to actually start instead of using a fixed delay.
+                        def elevated_process_started():
+                            try:
+                                out = subprocess.check_output(["ps", "-eo", "uid,args"], text=True, errors="ignore")
+                                for line in out.splitlines():
+                                    line = line.strip()
+                                    if not line:
+                                        continue
+                                    parts = line.split(None, 1)
+                                    if len(parts) != 2:
+                                        continue
+                                    uid, args = parts
+                                    if uid == "0" and script_path in args:
+                                        return True
+                            except Exception:
+                                pass
+                            return False
+
                         def monitor_and_close(p):
                             try:
-                                # Give user ample time to interact with the polkit prompt
-                                time.sleep(8)
-                                if p.poll() is None:
-                                    try:
-                                        self.root.after(0, self.root.quit)
-                                    except Exception:
-                                        pass
-                                else:
-                                    try:
-                                        err = p.stderr.read().decode(errors="ignore")
-                                    except Exception:
-                                        err = "<no stderr>"
-                                    print(f"pkexec exited quickly (rc={p.returncode}): {err}")
+                                deadline = time.time() + 90
+                                while time.time() < deadline:
+                                    if elevated_process_started():
+                                        try:
+                                            self.root.after(0, self.root.quit)
+                                        except Exception:
+                                            pass
+                                        return
+                                    if p.poll() is not None:
+                                        try:
+                                            err = p.stderr.read().decode(errors="ignore")
+                                        except Exception:
+                                            err = "<no stderr>"
+                                        print(f"pkexec exited (rc={p.returncode}): {err}")
+                                        return
+                                    time.sleep(0.5)
                             except Exception as e:
                                 print(f"monitor thread error: {e}")
 
