@@ -114,6 +114,13 @@ class PortScannerGUI:
                     f.write("ok")
             except Exception:
                 pass
+        # If admin instance knows the parent PID, request it to close immediately
+        parent_pid = os.environ.get("SCAN_PORT_PARENT_PID")
+        if parent_pid:
+            try:
+                os.kill(int(parent_pid), 15)
+            except Exception:
+                pass
         self.root.title("Scanner de Ports Avancé - Interface Graphique")
         self.root.geometry("1200x800")
         # Use the palette background for a macOS-like window
@@ -401,7 +408,7 @@ class PortScannerGUI:
                         ("xterm", ["-e"]),
                     ]
 
-                    sudo_cmd = f"sudo -k SCAN_PORT_ADMIN_READY={marker} {exe} '{script_path}'"
+                    sudo_cmd = f"sudo -k SCAN_PORT_ADMIN_READY={marker} SCAN_PORT_PARENT_PID={os.getpid()} {exe} '{script_path}'"
                     def elevated_process_started():
                         try:
                             out = subprocess.check_output(["ps", "-eo", "uid,args"], text=True, errors="ignore")
