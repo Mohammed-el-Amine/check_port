@@ -187,6 +187,7 @@ class PortScannerGUI:
             pass
         self.root.title("Scanner de Ports Avancé - Interface Graphique")
         self.root.geometry("1120x740")
+        self.root.minsize(980, 680)
         # Use the palette background for a macOS-like window
         try:
             self.root.configure(bg=PALETTE["bg"])
@@ -268,11 +269,12 @@ class PortScannerGUI:
         try:
             sw = int(self.root.winfo_screenwidth() or 1200)
             sh = int(self.root.winfo_screenheight() or 800)
-            w = max(420, int(sw * 0.45))
-            h = max(260, int(sh * 0.28))
+            w = max(520, int(sw * 0.5))
+            h = max(320, int(sh * 0.35))
             dialog.geometry(f"{w}x{h}")
         except Exception:
-            dialog.geometry("500x300")
+            dialog.geometry("600x360")
+        dialog.minsize(520, 320)
         # Protéger grab_set: attendre que la fenêtre soit visible puis tenter le grab
         try:
             dialog.update_idletasks()
@@ -298,7 +300,9 @@ class PortScannerGUI:
         # Frame principal
         main_frame = ttk.Frame(dialog, padding="20")
         main_frame.pack(fill=tk.BOTH, expand=True)
-        
+        main_frame.columnconfigure(0, weight=1)
+        main_frame.rowconfigure(1, weight=1)
+
         # Icône et titre
         title_label = tk.Label(
             main_frame,
@@ -307,14 +311,14 @@ class PortScannerGUI:
             bg=PALETTE["bg"],
             fg=PALETTE["text"]
         )
-        title_label.pack(pady=(0, 20))
-        
+        title_label.grid(row=0, column=0, sticky="w", pady=(0, 10))
+
         # Variable pour la réponse
         self.admin_choice = None
 
         # Boutons - placer en bas et garder visible
         buttons_frame = ttk.Frame(main_frame)
-        buttons_frame.pack(fill=tk.X, side=tk.BOTTOM, pady=(10, 0))
+        buttons_frame.grid(row=2, column=0, sticky="ew", pady=(8, 0))
 
         ttk.Button(
             buttons_frame,
@@ -356,7 +360,7 @@ class PortScannerGUI:
             "Que souhaitez-vous faire ?"
         ))
         msg_box.config(state=tk.DISABLED)
-        msg_box.pack(fill=tk.BOTH, expand=True, pady=(0, 12))
+        msg_box.grid(row=1, column=0, sticky="nsew", pady=(0, 10))
         
         # Attendre la réponse
         # Ensure the dialog receives focus and behaves modally where possible
@@ -1460,10 +1464,13 @@ class PortScannerGUI:
             picker.geometry("420x160")
         except Exception:
             pass
+        picker.minsize(380, 150)
+        picker.columnconfigure(0, weight=1)
+        picker.rowconfigure(1, weight=1)
 
-        ttk.Label(picker, text="Choisissez la langue de l'aide / Choose help language:").pack(pady=(18, 12))
+        ttk.Label(picker, text="Choisissez la langue de l'aide / Choose help language:").grid(row=0, column=0, pady=(18, 12))
         btn_frame = ttk.Frame(picker)
-        btn_frame.pack()
+        btn_frame.grid(row=1, column=0)
 
         def pick(lang):
             lang_choice["value"] = lang
@@ -1488,14 +1495,18 @@ class PortScannerGUI:
         try:
             sw = int(self.root.winfo_screenwidth() or 1200)
             sh = int(self.root.winfo_screenheight() or 800)
-            w = max(700, int(sw * 0.6))
-            h = max(480, int(sh * 0.6))
+            w = max(720, int(sw * 0.6))
+            h = max(520, int(sh * 0.6))
             help_win.geometry(f"{w}x{h}")
         except Exception:
-            help_win.geometry("800x600")
+            help_win.geometry("820x620")
+        help_win.minsize(700, 500)
+        help_win.columnconfigure(0, weight=1)
+        help_win.rowconfigure(0, weight=1)
+        help_win.rowconfigure(1, weight=0)
 
         txt = scrolledtext.ScrolledText(help_win, wrap=tk.WORD, font=("Courier", max(10, int(self.scaled_font_ui[1]) if len(self.scaled_font_ui) > 1 else 10)))
-        txt.pack(fill=tk.BOTH, expand=True, padx=6, pady=6)
+        txt.grid(row=0, column=0, sticky="nsew", padx=6, pady=6)
 
         # Tags et styles pour le texte coloré
         heading_font = tkfont.Font(txt, txt.cget("font"))
@@ -1541,8 +1552,9 @@ class PortScannerGUI:
 
         # Place the close button in a small bottom frame so it's always visible
         btn_frame = ttk.Frame(help_win)
-        btn_frame.pack(fill=tk.X)
-        ttk.Button(btn_frame, text="Fermer", command=help_win.destroy).pack(side=tk.RIGHT, padx=6, pady=6)
+        btn_frame.grid(row=1, column=0, sticky="ew")
+        btn_frame.columnconfigure(0, weight=1)
+        ttk.Button(btn_frame, text="Fermer", command=help_win.destroy).grid(row=0, column=0, sticky="e", padx=6, pady=6)
 
         # Ensure the help window is visible and raised (avoid grab_set which can be blocked)
         try:
