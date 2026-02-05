@@ -357,13 +357,6 @@ class PortScannerGUI:
                         shell_runner = ['/bin/sh', '-c', exec_cmd]
                         cmd = [pkexec_path] + shell_runner
                         subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
-
-                        # Do NOT close the window until the user confirms the admin instance opened.
-                        messagebox.showinfo(
-                            "Relance en mode admin",
-                            "Une demande d'authentification peut s'afficher.\n"
-                            "Si rien ne se passe, utilisez le bouton et relancez avec sudo depuis un terminal."
-                        )
                         return
                     except Exception as e:
                         print(f"pkexec invocation error: {e}")
@@ -404,7 +397,7 @@ class PortScannerGUI:
                                 if len(parts) != 2:
                                     continue
                                 uid, args = parts
-                                if uid == "0" and script_path in args:
+                                if uid == "0" and "gui_port_scanner.py" in args:
                                     return True
                         except Exception:
                             pass
@@ -434,12 +427,7 @@ class PortScannerGUI:
                                 return True
                             except Exception:
                                 continue
-                    # If no terminal could be launched, keep GUI open
-                    messagebox.showerror(
-                        "Relance impossible",
-                        "Aucun terminal graphique n'a pu être lancé pour le sudo.\n"
-                        "L'application continue en mode limité."
-                    )
+                    # If no terminal could be launched, keep GUI open silently
                     return False
 
                 # Expose helper for pkexec fallback
