@@ -421,29 +421,54 @@ def analyze_port(port):
 
 def show_help():
     """Affiche l'aide du script"""
-    print("🔍 SCANNER DE PORTS AVANCÉ")
-    print("=" * 40)
-    print("USAGE: python3 check_port.py [target] [ports]")
+    use_color = sys.stdout.isatty()
+    C = {
+        "reset": "\033[0m" if use_color else "",
+        "bold": "\033[1m" if use_color else "",
+        "cyan": "\033[36m" if use_color else "",
+        "yellow": "\033[33m" if use_color else "",
+        "green": "\033[32m" if use_color else "",
+    }
+    def h(s):
+        return f"{C['bold']}{C['cyan']}{s}{C['reset']}"
+    def k(s):
+        return f"{C['bold']}{s}{C['reset']}"
+    def ex(s):
+        return f"{C['green']}{s}{C['reset']}"
+    def note(s):
+        return f"{C['yellow']}{s}{C['reset']}"
+
+    print(h("PORT SCANNER — CLI"))
+    print("=" * 60)
+    print(k("USAGE:"))
+    print("  python3 check_port.py <target> [ports] [options]")
     print()
-    print("OPTIONS DE PORTS:")
-    print("  (vide)       : ports communs seulement")
-    print("  'all'        : TOUS les ports 1-65535 (⚠️ très long!)")
-    print("  'common'     : ports communs uniquement")
-    print("  'top1000'    : ports 1-1000")
-    print("  'top5000'    : ports 1-5000")
-    print("  '1-1024'     : plage personnalisée")
-    print("  '22,80,443'  : ports spécifiques")
-    print("  'analyze'    : analyser des ports spécifiques")
-    print("  --show-dynamic: afficher aussi les ports dynamiques/éphémères (par défaut masqués)")
-    print("  --udp         : activer le scan UDP (en plus du TCP)")
+    print(k("TARGET:"))
+    print("  IP ou hostname (ex: localhost, 192.168.1.1)")
     print()
-    print("EXEMPLES:")
-    print("  python3 check_port.py 192.168.1.1 all")
-    print("  python3 check_port.py localhost top1000")
-    print("  python3 check_port.py 10.0.0.1 1-1024")
-    print("  python3 check_port.py localhost 631,11434,33362")
+    print(k("PORTS (preset / liste / plage):"))
+    print("  common      : ports courants (défaut)")
+    print("  top1000     : ports 1–1000")
+    print("  top5000     : ports 1–5000")
+    print("  all         : ports 1–65535 (très long)")
+    print("  1-1024      : plage personnalisée")
+    print("  22,80,443   : liste explicite")
     print()
-    print("⚡ Le script s'optimise automatiquement selon le nombre de ports!")
+    print(k("OPTIONS:"))
+    print("  --show-dynamic  Afficher les ports dynamiques/éphémères")
+    print("  --udp           Activer un scan UDP (best-effort, plus lent)")
+    print("  -h, --help      Afficher cette aide")
+    print()
+    print(k("EXEMPLES:"))
+    print(ex("  python3 check_port.py localhost"))
+    print(ex("  python3 check_port.py 192.168.1.1 top1000"))
+    print(ex("  python3 check_port.py 10.0.0.1 1-1024"))
+    print(ex("  python3 check_port.py 10.0.0.1 22,80,443"))
+    print(ex("  python3 check_port.py 192.168.1.1 top1000 --udp"))
+    print()
+    print(k("NOTES:"))
+    print(note("  - Le script ajuste automatiquement timeout/workers selon le volume"))
+    print(note("  - Pour voir/stopper des PID: exécuter en sudo/administrateur"))
     print()
 
 def main():
