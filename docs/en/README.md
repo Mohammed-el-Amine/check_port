@@ -1,6 +1,15 @@
 # 🛠️ Scan Port GUI & CLI
 Advanced port scanner with **Tkinter GUI** and **CLI**. Smart service detection, flexible scan options, and clean service stop (admin privileges).
 
+**Quality & Security:** audited (Bandit, Ruff, pip‑audit, Gitleaks) ✅
+
+---
+## ✅ Security & QA checks (last audit)
+- **Bandit** (Python security): `bandit -r .` → **no High**, **no Medium** (remaining Low: subprocess usage/try‑except best‑effort)
+- **Ruff** (lint): `ruff check .` → **0 errors**
+- **Gitleaks** (secrets): `gitleaks detect --no-git --source .` → **no leaks**
+- **pip‑audit** (dependencies): **N/A** (no `requirements.txt`/`pyproject.toml` in repo)
+
 ---
 ## ✅ Features
 - **CLI + GUI** (Tkinter)
