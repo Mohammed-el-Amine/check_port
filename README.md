@@ -5,7 +5,7 @@
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Python](https://img.shields.io/badge/python-3.8%2B-blue)
 ![Release](https://img.shields.io/github/v/release/Mohammed-el-Amine/check_port)
-![Downloads](https://img.shields.io/github/downloads/Mohammed-el-Amine/check_port/total)
+![Downloads](https://img.shields.io/github/downloads/Mohammed-el-Amine/check_port/total?cacheSeconds=60)
 
 Téléchargement direct (v2.2.0) :
 - Linux: https://github.com/Mohammed-el-Amine/check_port/releases/download/v2.2.0/scan_port_gui_linux
