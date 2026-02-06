@@ -1,6 +1,6 @@
 BUILD
 =====
 
-Choisissez votre langue :
-- 🇫🇷 [BUILD.fr.md](BUILD.fr.md)
-- 🇬🇧 [BUILD.en.md](BUILD.en.md)
+Choose your language:
+- 🇫🇷 [docs/fr/BUILD.md](docs/fr/BUILD.md)
+- 🇬🇧 [docs/en/BUILD.md](docs/en/BUILD.md)

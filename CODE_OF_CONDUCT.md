@@ -2,5 +2,5 @@ Code of Conduct
 ===============
 
 Choose your language:
-- 🇫🇷 [CODE_OF_CONDUCT.fr.md](CODE_OF_CONDUCT.fr.md)
-- 🇬🇧 [CODE_OF_CONDUCT.en.md](CODE_OF_CONDUCT.en.md)
+- 🇫🇷 [docs/fr/CODE_OF_CONDUCT.md](docs/fr/CODE_OF_CONDUCT.md)
+- 🇬🇧 [docs/en/CODE_OF_CONDUCT.md](docs/en/CODE_OF_CONDUCT.md)

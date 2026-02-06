@@ -2,11 +2,11 @@
 
 Choisissez votre langue :
 
-- 🇫🇷 **Français** → [README.fr.md](README.fr.md)
-- 🇬🇧 **English** → [README.en.md](README.en.md)
+- 🇫🇷 **Français** → [docs/fr/README.md](docs/fr/README.md)
+- 🇬🇧 **English** → [docs/en/README.md](docs/en/README.md)
 
 ---
 Autres documents :
-- Build: [BUILD.fr.md](BUILD.fr.md) / [BUILD.en.md](BUILD.en.md)
-- Sécurité: [SECURITY.fr.md](SECURITY.fr.md) / [SECURITY.en.md](SECURITY.en.md)
-- Code of Conduct: [CODE_OF_CONDUCT.fr.md](CODE_OF_CONDUCT.fr.md) / [CODE_OF_CONDUCT.en.md](CODE_OF_CONDUCT.en.md)
+- Build: [docs/fr/BUILD.md](docs/fr/BUILD.md) / [docs/en/BUILD.md](docs/en/BUILD.md)
+- Sécurité: [docs/fr/SECURITY.md](docs/fr/SECURITY.md) / [docs/en/SECURITY.md](docs/en/SECURITY.md)
+- Code of Conduct: [docs/fr/CODE_OF_CONDUCT.md](docs/fr/CODE_OF_CONDUCT.md) / [docs/en/CODE_OF_CONDUCT.md](docs/en/CODE_OF_CONDUCT.md)
