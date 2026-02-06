@@ -7,6 +7,11 @@
 ![Release](https://img.shields.io/github/v/release/Mohammed-el-Amine/check_port)
 ![Downloads](https://img.shields.io/github/downloads/Mohammed-el-Amine/check_port/total)
 
+Téléchargement direct (v2.2.0) :
+- Linux: https://github.com/Mohammed-el-Amine/check_port/releases/download/v2.2.0/scan_port_gui_linux
+- macOS: https://github.com/Mohammed-el-Amine/check_port/releases/download/v2.2.0/scan_port_gui_macos
+- Windows: https://github.com/Mohammed-el-Amine/check_port/releases/download/v2.2.0/scan_port_gui_windows.exe
+
 Choisissez votre langue :
 
 - 🇫🇷 **Français** → [docs/fr/README.md](docs/fr/README.md)

@@ -39,6 +39,11 @@ sudo apt install python3-tk
 ```
 
 ---
+## ⬇️ Téléchargements directs (v2.2.0)
+- Linux : https://github.com/Mohammed-el-Amine/check_port/releases/download/v2.2.0/scan_port_gui_linux
+- macOS : https://github.com/Mohammed-el-Amine/check_port/releases/download/v2.2.0/scan_port_gui_macos
+- Windows : https://github.com/Mohammed-el-Amine/check_port/releases/download/v2.2.0/scan_port_gui_windows.exe
+
 ## 🚀 Utilisation CLI
 ```bash
 python3 check_port.py <cible> [ports] [options]
