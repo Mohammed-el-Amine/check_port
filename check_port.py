@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 DEFAULT_TARGET = "localhost"
 DEFAULT_TIMEOUT = 0.8
+DEFAULT_UDP_TIMEOUT = 0.2
 DEFAULT_WORKERS = 500
 COMMON_PORTS = [21,22,23,25,53,80,88,110,111,123,135,139,143,161,389,443,445,465,514,631,993,995,1433,1521,3306,3389,5900,8080,8443,8000]
 ALL_PORTS = list(range(1, 65536))
@@ -65,7 +66,7 @@ def scan_port_udp(target_ip, port, timeout=DEFAULT_TIMEOUT):
     """Scanne un port UDP (best-effort). No response = open|filtered."""
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.settimeout(timeout)
+        sock.settimeout(min(timeout, DEFAULT_UDP_TIMEOUT))
         sock.sendto(b"", (target_ip, port))
         try:
             data, _ = sock.recvfrom(512)
@@ -488,6 +489,10 @@ def main():
     else:
         timeout = DEFAULT_TIMEOUT
         workers = min(DEFAULT_WORKERS, max(50, num_ports))
+
+    if use_udp:
+        timeout = min(timeout, DEFAULT_UDP_TIMEOUT)
+        workers = min(workers, 300)
 
     print(f"Début du scan sur: {target} ({target_ip})")
     proto_note = "TCP" + (" + UDP" if use_udp else "")

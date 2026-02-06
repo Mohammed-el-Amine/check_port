@@ -35,7 +35,6 @@ Guide d'utilisation - Scanner de Ports (Interface Graphique)
 - "Afficher les ports dynamiques" : cochez pour inclure les ports éphémères (32768-65535).
     Par défaut ils sont masqués pour réduire le bruit.
 - "Scan UDP" : active un scan UDP (plus lent, résultats best-effort).
-- "Mode lecture seule" : par défaut activé (empêche d'arrêter/kill des services).
 
 3) Contrôles principaux
 - 🚀 Démarrer le Scan : lance le scan en arrière-plan et affiche la progression.
@@ -91,7 +90,6 @@ User Guide - Port Scanner (GUI)
 - "Show dynamic ports": include ephemeral ports (32768-65535).
     Hidden by default to reduce noise.
 - "UDP scan": enables UDP scan (slower, best-effort results).
-- "Read-only mode": enabled by default (prevents stop/kill actions).
 
 3) Main controls
 - 🚀 Start Scan: runs the scan in background and shows progress.
@@ -207,7 +205,6 @@ class PortScannerGUI:
         self.scan_results = []
         self.is_admin = self.check_admin_privileges()
         self.admin_dialog_shown = False  # Pour éviter de redemander
-        self.read_only_var = tk.BooleanVar(value=True)
         self.scan_udp_var = tk.BooleanVar(value=False)
 
         # Compute a one-time scale based on the screen size and derive
@@ -721,6 +718,7 @@ class PortScannerGUI:
         # Ports
         ttk.Label(config_frame, text="Ports:").grid(row=0, column=2, sticky=tk.W, padx=(10, 5))
         self.ports_var = tk.StringVar(value="common")
+        self.ports_var.trace_add("write", lambda *args: self.update_udp_availability())
         self.ports_combo = ttk.Combobox(
             config_frame, 
             textvariable=self.ports_var,
@@ -748,13 +746,15 @@ class PortScannerGUI:
         )
         self.scan_udp_check.grid(row=0, column=1, sticky=tk.W, padx=(12, 0))
 
-        self.read_only_check = ttk.Checkbutton(
+
+        self.udp_hint = tk.Label(
             options_frame,
-            text="Mode lecture seule (recommandé)",
-            variable=self.read_only_var,
-            command=self.update_action_state
+            text="UDP auto-désactivé si le scan est trop large",
+            bg=PALETTE["bg"],
+            fg=PALETTE["muted"],
+            font=self.scaled_font_sub
         )
-        self.read_only_check.grid(row=1, column=0, sticky=tk.W, pady=(6, 0))
+        self.udp_hint.grid(row=1, column=1, sticky=tk.W, padx=(12, 0), pady=(6, 0))
 
         # Boutons
         buttons_frame = ttk.Frame(main_frame)
@@ -859,7 +859,6 @@ class PortScannerGUI:
         self.context_menu.add_command(label="💀 Tuer le processus", command=self.kill_process)
         self.context_menu.add_command(label="📋 Copier les détails", command=self.copy_details)
         self.tree.bind("<Button-3>", self.show_context_menu)
-        self.update_action_state()
 
         # Barre de progression
         self.progress_frame = ttk.Frame(main_frame)
@@ -969,6 +968,24 @@ class PortScannerGUI:
         # Default
         return ("🟡 Service", 'low')
     
+        def should_disable_udp(num_ports):
+            # Disable UDP on very large scans to prevent UI freeze
+            return num_ports >= 50000
+
+    def update_udp_availability(self):
+        try:
+            ports_arg = (self.ports_var.get() or '').strip()
+            is_all = ports_arg.lower() == 'all'
+            ports_preview = parse_ports(ports_arg) if ports_arg else []
+            too_big = len(ports_preview) >= 50000
+            if is_all or too_big:
+                self.scan_udp_var.set(False)
+                self.scan_udp_check.state(['disabled'])
+            else:
+                self.scan_udp_check.state(['!disabled'])
+        except Exception:
+            pass
+
     def start_scan(self):
         """Démarre le scan en arrière-plan"""
         if self.scan_running:
@@ -984,6 +1001,19 @@ class PortScannerGUI:
         if not ports_arg:
             messagebox.showerror("Erreur", "Veuillez spécifier des ports")
             return
+
+        # Auto-disable UDP on huge scans to avoid freezing
+        try:
+            ports_preview = parse_ports(ports_arg)
+            if should_disable_udp(len(ports_preview)) and self.scan_udp_var.get():
+                self.scan_udp_var.set(False)
+                messagebox.showinfo(
+                    "UDP désactivé",
+                    "Le scan UDP est désactivé automatiquement pour les très gros scans (>= 50 000 ports).\n"
+                    "Pour éviter les blocages, choisissez un preset plus petit."
+                )
+        except Exception:
+            pass
         
         self.scan_running = True
         self.scan_button.config(state=tk.DISABLED)
@@ -1029,6 +1059,10 @@ class PortScannerGUI:
             else:
                 timeout = DEFAULT_TIMEOUT
                 workers = min(DEFAULT_WORKERS, max(50, num_ports))
+
+            if self.scan_udp_var.get():
+                timeout = min(timeout, 0.2)
+                workers = min(workers, 300)
             
             # Scan
             scanned_count = 0
@@ -1036,28 +1070,52 @@ class PortScannerGUI:
 
             protocols = ["tcp"] + (["udp"] if self.scan_udp_var.get() else [])
             total_tasks = len(ports) * len(protocols)
+
+            stall_limit = 30  # seconds without progress before cancel
+            last_progress = time.time()
             
             with ThreadPoolExecutor(max_workers=workers) as executor:
-                futures = {executor.submit(scan_port, target_ip, p, timeout, proto): (p, proto) for proto in protocols for p in ports}
-                
-                for future in as_completed(futures):
-                    if not self.scan_running:  # Check si arrêt demandé
+                future_map = {executor.submit(scan_port, target_ip, p, timeout, proto): (p, proto) for proto in protocols for p in ports}
+                pending = set(future_map.keys())
+
+                while pending:
+                    if not self.scan_running:
                         break
-                    
-                    port, status, banner = future.result()
-                    _, proto = futures[future]
-                    scanned_count += 1
-                    
-                    if status == "open":
-                        open_ports.append((port, banner, proto))
-                    
-                    # Mise à jour de la progression
-                    progress = (scanned_count / total_tasks) * 100
-                    self.root.after(0, lambda p=progress: self.progress_var.set(p))
-                    
-                    if scanned_count % max(1, total_tasks // 20) == 0:
-                        self.root.after(0, lambda c=scanned_count, t=total_tasks: 
-                                       self.progress_label.config(text=f"Scanné {c}/{t} tâches..."))
+
+                    done, pending = set(), pending
+                    try:
+                        from concurrent.futures import wait, FIRST_COMPLETED
+                        done, pending = wait(pending, timeout=0.5, return_when=FIRST_COMPLETED)
+                    except Exception:
+                        done = set()
+
+                    if not done:
+                        # no progress
+                        if time.time() - last_progress > stall_limit:
+                            for f in list(pending):
+                                f.cancel()
+                            break
+                        continue
+
+                    last_progress = time.time()
+                    for future in done:
+                        try:
+                            port, status, banner = future.result()
+                        except Exception:
+                            continue
+                        _, proto = future_map.get(future, (None, "tcp"))
+                        scanned_count += 1
+
+                        if status == "open":
+                            open_ports.append((port, banner, proto))
+
+                        # Mise à jour de la progression
+                        progress = (scanned_count / total_tasks) * 100
+                        self.root.after(0, lambda p=progress: self.progress_var.set(p))
+
+                        if scanned_count % max(1, total_tasks // 20) == 0:
+                            self.root.after(0, lambda c=scanned_count, t=total_tasks: 
+                                           self.progress_label.config(text=f"Scanné {c}/{t} tâches..."))
             
             if not self.scan_running:
                 self.root.after(0, lambda: self.progress_label.config(text="Scan arrêté"))
@@ -1150,15 +1208,6 @@ class PortScannerGUI:
         self.scan_results = []
         self.progress_var.set(0)
         self.progress_label.config(text="Prêt pour le scan")
-
-    def update_action_state(self):
-        """Met à jour l'état des actions sensibles selon le mode lecture seule"""
-        ro = self.read_only_var.get()
-        try:
-            self.context_menu.entryconfig(0, state=(tk.DISABLED if ro else tk.NORMAL))
-            self.context_menu.entryconfig(1, state=(tk.DISABLED if ro else tk.NORMAL))
-        except Exception:
-            pass
 
     def export_results(self, fmt="csv"):
         """Exporte les résultats en CSV ou JSON"""
@@ -1363,7 +1412,7 @@ class PortScannerGUI:
         btn_font = self.scaled_font_ui
 
         # Bouton arrêter service
-        stop_state = tk.NORMAL if self.is_admin and result['service_cmd'] and (not self.read_only_var.get()) else tk.DISABLED
+        stop_state = tk.NORMAL if self.is_admin and result['service_cmd'] else tk.DISABLED
         tk.Button(
             buttons_frame,
             text=f"🔧 Arrêter {result['service_cmd'] or 'service'}",
@@ -1373,7 +1422,7 @@ class PortScannerGUI:
         ).pack(side=tk.LEFT, padx=(0, 5))
 
         # Bouton tuer processus
-        kill_state = tk.NORMAL if self.is_admin and result['pid_infos'] and (not self.read_only_var.get()) else tk.DISABLED
+        kill_state = tk.NORMAL if self.is_admin and result['pid_infos'] else tk.DISABLED
         tk.Button(
             buttons_frame,
             text="💀 Tuer les processus",
@@ -1409,9 +1458,6 @@ class PortScannerGUI:
     
     def stop_service_action(self, result, parent_window):
         """Arrête un service"""
-        if self.read_only_var.get():
-            messagebox.showinfo("Mode lecture seule", "Désactivez le mode lecture seule pour agir sur les services.")
-            return
         if not self.is_admin:
             messagebox.showerror("Erreur", "Privilèges administrateur requis")
             return
@@ -1443,9 +1489,6 @@ class PortScannerGUI:
     
     def kill_process_action(self, result, parent_window):
         """Tue les processus d'un port"""
-        if self.read_only_var.get():
-            messagebox.showinfo("Mode lecture seule", "Désactivez le mode lecture seule pour tuer un processus.")
-            return
         if not self.is_admin:
             messagebox.showerror("Erreur", "Privilèges administrateur requis")
             return
