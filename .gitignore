@@ -5,3 +5,4 @@ dist/
 build/
 scan_port_gui.desktop
 scan_port.png
+scan_port_gui_linux
