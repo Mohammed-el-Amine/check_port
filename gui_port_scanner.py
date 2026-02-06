@@ -6,17 +6,16 @@ from tkinter import ttk, messagebox, scrolledtext, filedialog
 import tkinter.font as tkfont
 import sys
 import os
-import io
-import contextlib
 import platform
 import subprocess
 import shutil
 import threading
 import time
 import shlex
+import tempfile
 import csv
 import json
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 import socket
 
 
@@ -147,10 +146,8 @@ FONT_UI = ("SF Pro Text", 12)
 try:
     from check_port import (
         parse_ports, scan_port, get_service_info, get_pids_for_port,
-        find_pids_linux, find_pids_windows, get_process_details,
-        kill_pids, is_local_target_strict, get_local_ips,
-        DEFAULT_TARGET, DEFAULT_TIMEOUT, DEFAULT_WORKERS,
-        COMMON_PORTS, ALL_PORTS
+        kill_pids, is_local_target_strict,
+        DEFAULT_TARGET, DEFAULT_TIMEOUT, DEFAULT_WORKERS
     )
 except ImportError:
     messagebox.showerror("Erreur", "Impossible d'importer check_port.py\nAssurez-vous qu'il est dans le même dossier.")
@@ -484,7 +481,7 @@ class PortScannerGUI:
 
                 # Fallback: open a terminal emulator that runs sudo so the user sees a password prompt
                 def launch_terminal_sudo(exe, script_path):
-                    marker = f"/tmp/scan_port_admin_ready_{os.getpid()}"
+                    marker = os.path.join(tempfile.gettempdir(), f"scan_port_admin_ready_{os.getpid()}")
                     # ensure old marker doesn't exist
                     try:
                         if os.path.exists(marker):
@@ -1005,7 +1002,7 @@ class PortScannerGUI:
         # Auto-disable UDP on huge scans to avoid freezing
         try:
             ports_preview = parse_ports(ports_arg)
-            if should_disable_udp(len(ports_preview)) and self.scan_udp_var.get():
+            if self.should_disable_udp(len(ports_preview)) and self.scan_udp_var.get():
                 self.scan_udp_var.set(False)
                 messagebox.showinfo(
                     "UDP désactivé",
@@ -1035,14 +1032,14 @@ class PortScannerGUI:
             try:
                 target_ip = socket.gethostbyname(target)
             except Exception as e:
-                self.root.after(0, lambda: messagebox.showerror("Erreur DNS", f"Impossible de résoudre {target}: {e}"))
+                self.root.after(0, lambda e=e: messagebox.showerror("Erreur DNS", f"Impossible de résoudre {target}: {e}"))
                 return
             
             # Parse des ports
             try:
                 ports = parse_ports(ports_arg)
             except Exception as e:
-                self.root.after(0, lambda: messagebox.showerror("Erreur Ports", f"Format de ports invalide: {e}"))
+                self.root.after(0, lambda e=e: messagebox.showerror("Erreur Ports", f"Format de ports invalide: {e}"))
                 return
             
             num_ports = len(ports)
@@ -1132,7 +1129,7 @@ class PortScannerGUI:
             self.root.after(0, lambda: self.populate_results(display_ports, target_ip))
             
         except Exception as e:
-            self.root.after(0, lambda: messagebox.showerror("Erreur de Scan", f"Erreur durant le scan: {e}"))
+            self.root.after(0, lambda e=e: messagebox.showerror("Erreur de Scan", f"Erreur durant le scan: {e}"))
         finally:
             self.root.after(0, self.scan_finished)
     
@@ -1778,7 +1775,7 @@ def main():
     """Point d'entrée principal"""
     try:
         root = tk.Tk()
-        app = PortScannerGUI(root)
+        PortScannerGUI(root)
         root.mainloop()
     except KeyboardInterrupt:
         print("\nArrêt du programme")

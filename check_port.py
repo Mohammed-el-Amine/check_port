@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 # Scanner de ports avancé avec fermeture intelligente
 
-import socket, sys, time, platform, subprocess, os
+import socket
+import sys
+import time
+import platform
+import subprocess
+import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 DEFAULT_TARGET = "localhost"
@@ -24,7 +29,7 @@ def parse_ports(arg):
         try:
             num = int(arg[3:]) if len(arg) > 3 else 1000
             return list(range(1, min(num + 1, 65536)))
-        except:
+        except Exception:
             return list(range(1, 1001))
     
     parts = arg.split(',')
@@ -116,7 +121,7 @@ def find_pids_linux(port):
         for line in out.splitlines():
             try:
                 pids.add(int(line.strip()))
-            except:
+            except Exception:
                 pass
     except Exception:
         pass
@@ -156,7 +161,7 @@ def find_pids_windows(port):
                     if f":{port}" in col or col.endswith(f".{port}"):
                         try:
                             pids.add(int(pid))
-                        except:
+                        except Exception:
                             pass
                         break
             except Exception:
@@ -295,24 +300,24 @@ def suggest_service_commands(port, pids, service_name, service_cmd):
     print(f"\n🔧 COMMANDES RECOMMANDÉES pour le port {port} ({service_name}):")
     
     if service_cmd:
-        print(f"📋 Arrêter le service proprement:")
+        print("📋 Arrêter le service proprement:")
         print(f"   sudo systemctl stop {service_cmd}")
         print(f"   sudo service {service_cmd} stop")
         
-        print(f"📋 Désactiver le service au démarrage:")
+        print("📋 Désactiver le service au démarrage:")
         print(f"   sudo systemctl disable {service_cmd}")
         
-        print(f"📋 Redémarrer le service:")
+        print("📋 Redémarrer le service:")
         print(f"   sudo systemctl restart {service_cmd}")
         
-        print(f"📋 Vérifier le statut:")
+        print("📋 Vérifier le statut:")
         print(f"   sudo systemctl status {service_cmd}")
     
-    print(f"📋 Forcer l'arrêt des processus (ATTENTION: peut corrompre les données!):")
+    print("📋 Forcer l'arrêt des processus (ATTENTION: peut corrompre les données!):")
     for pid in pids:
         print(f"   sudo kill -9 {pid}")
     
-    print(f"📋 Vérifier que le port est fermé après:")
+    print("📋 Vérifier que le port est fermé après:")
     print(f"   sudo lsof -i :{port}")
     print(f"   sudo netstat -tlnp | grep :{port}")
     
@@ -361,7 +366,7 @@ def suggest_remote_commands(target, ports, remote_os_hint=None):
     print(f'  New-NetFirewallRule -DisplayName "Block ports {pstr}" -Direction Inbound -Action Block -Protocol TCP -LocalPort {pstr}')
     print("Pour trouver PID et killer si nécessaire (PowerShell Admin):")
     print(f'  netstat -ano | findstr ":{ports[0]}"')
-    print(f'  taskkill /PID <PID> /F\n')
+    print('  taskkill /PID <PID> /F\n')
     
     print("Linux (exécuter en root) - UFW :")
     print(f'  sudo ufw deny proto tcp from any to any port {pstr}')
@@ -574,8 +579,6 @@ def main():
     print(f"\n🎯 {len(display_ports)} ports ouverts trouvés:")
     for p, banner, proto in sorted(display_ports, key=lambda x: (x[2], x[0])):
         service_name, _, _ = get_service_info(p)
-        banner_info = f" - {banner[:60]}..." if banner and len(banner) > 60 else f" - {banner}" if banner else ""
-
         # Récupérer les PID et infos d'application (best-effort)
         pid_infos = get_pids_for_port(p)
         pid_display = ""
@@ -706,11 +709,11 @@ def main():
         print(f" 🔓 Port {port} ({service_name}) :")
         
         if "service_stopped" in info:
-            print(f"    ✅ Service arrêté proprement")
+            print("    ✅ Service arrêté proprement")
         elif "service_error" in info:
             print(f"    ❌ Erreur service: {info['service_error']}")
         elif "skipped" in info:
-            print(f"    ⏭️  Ignoré par l'utilisateur")
+            print("    ⏭️  Ignoré par l'utilisateur")
         elif info.get("killed"):
             print(f"    📋 PIDs trouvés: {info['found']}")
             for pid,(ok,msg) in info["killed"].items():
