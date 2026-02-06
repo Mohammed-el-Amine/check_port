@@ -397,6 +397,19 @@ class PortScannerGUI:
         script_path = os.path.abspath(__file__)
         exe = sys.executable
 
+        def _terminate_self():
+            try:
+                self.root.after(0, self.root.destroy)
+            except Exception:
+                pass
+            try:
+                os._exit(0)
+            except Exception:
+                pass
+
+        # If running as a PyInstaller executable, do not pass script_path
+        frozen = getattr(sys, "frozen", False)
+
         try:
             # macOS / Linux flow: prefer graphical helpers, then terminal fallback, then sudo exec
             if "linux" in plat or "darwin" in plat:
@@ -406,7 +419,7 @@ class PortScannerGUI:
                         # Use osascript to run the script with administrator privileges (will show password prompt)
                         osa_cmd = f"do shell script \"{exe} '{script_path}'\" with administrator privileges"
                         subprocess.Popen(["osascript", "-e", osa_cmd])
-                        self.root.quit()
+                        _terminate_self()
                         return
                     except Exception:
                         # fallthrough to other methods
@@ -436,10 +449,14 @@ class PortScannerGUI:
                             if a:
                                 parts.append(a)
 
-                        exec_cmd = ' '.join(parts + [f'exec {shlex.quote(exe)} {shlex.quote(script_path)}'])
+                        if frozen:
+                            exec_cmd = ' '.join(parts + [f'exec {shlex.quote(exe)}'])
+                        else:
+                            exec_cmd = ' '.join(parts + [f'exec {shlex.quote(exe)} {shlex.quote(script_path)}'])
                         shell_runner = ['/bin/sh', '-c', exec_cmd]
                         cmd = [pkexec_path] + shell_runner
                         subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+                        _terminate_self()
                         return
                     except Exception as e:
                         print(f"pkexec invocation error: {e}")
@@ -449,8 +466,11 @@ class PortScannerGUI:
                     helper_path = shutil.which(helper)
                     if helper_path:
                         try:
-                            subprocess.Popen([helper_path, exe, script_path])
-                            self.root.quit()
+                            if frozen:
+                                subprocess.Popen([helper_path, exe])
+                            else:
+                                subprocess.Popen([helper_path, exe, script_path])
+                            _terminate_self()
                             return
                         except Exception:
                             continue
@@ -476,7 +496,10 @@ class PortScannerGUI:
                         ("xterm", ["-e"]),
                     ]
 
-                    sudo_cmd = f"sudo -k SCAN_PORT_ADMIN_READY={marker} SCAN_PORT_PARENT_PID={os.getpid()} {exe} '{script_path}'"
+                    if frozen:
+                        sudo_cmd = f"sudo -k SCAN_PORT_ADMIN_READY={marker} SCAN_PORT_PARENT_PID={os.getpid()} {shlex.quote(exe)}"
+                    else:
+                        sudo_cmd = f"sudo -k SCAN_PORT_ADMIN_READY={marker} SCAN_PORT_PARENT_PID={os.getpid()} {shlex.quote(exe)} '{script_path}'"
                     def elevated_process_started():
                         try:
                             out = subprocess.check_output(["ps", "-eo", "uid,args"], text=True, errors="ignore")
@@ -522,6 +545,11 @@ class PortScannerGUI:
                                 subprocess.Popen(cmd)
                                 # Close the current GUI when the elevated instance actually starts
                                 threading.Thread(target=close_when_elevated, daemon=True).start()
+                                # Fallback: close parent shortly after launching
+                                try:
+                                    self.root.after(500, _terminate_self)
+                                except Exception:
+                                    pass
                                 return True
                             except Exception:
                                 continue
@@ -545,8 +573,11 @@ class PortScannerGUI:
                     "Redémarrage",
                     "Aucun helper graphique détecté. Le programme va être relancé avec sudo dans le même environnement."
                 )
-                self.root.quit()
-                os.execvp('sudo', ['sudo', exe, script_path])
+                _terminate_self()
+                if frozen:
+                    os.execvp('sudo', ['sudo', exe])
+                else:
+                    os.execvp('sudo', ['sudo', exe, script_path])
 
             elif "windows" in plat:
                 import ctypes
@@ -556,7 +587,7 @@ class PortScannerGUI:
                     ret = ctypes.windll.shell32.ShellExecuteW(None, "runas", exe, params, None, 1)
                     if int(ret) > 32:
                         # launched successfully; exit current GUI
-                        self.root.quit()
+                        _terminate_self()
                         return
                     else:
                         messagebox.showwarning(

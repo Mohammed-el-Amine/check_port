@@ -2,4 +2,6 @@ __pycache__/
 *.pyc
 .venv_build/
 dist/
+build/
 scan_port_gui.desktop
+scan_port.png

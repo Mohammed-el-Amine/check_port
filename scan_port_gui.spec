@@ -1,5 +1,16 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import sys
+
+# platform-specific icon
+icon = None
+if sys.platform.startswith("win"):
+    icon = "assets/icon.ico"
+elif sys.platform == "darwin":
+    icon = "assets/icon.icns"
+else:
+    icon = "assets/icon.png"
+
 
 a = Analysis(
     ['gui_port_scanner.py'],
@@ -24,6 +35,7 @@ exe = EXE(
     [],
     name='scan_port_gui',
     debug=False,
+    icon=icon,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,

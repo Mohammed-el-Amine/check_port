@@ -7,6 +7,10 @@
 
 set -euo pipefail
 PY=python3
+# Prefer system python (has tkinter) if available
+if [ -x "/usr/bin/python3" ]; then
+  PY=/usr/bin/python3
+fi
 VENV_DIR=.venv_build
 DIST_NAME=scan_port_gui
 SRC=gui_port_scanner.py
@@ -101,9 +105,9 @@ pip install --upgrade pip setuptools wheel
 pip install pyinstaller
 
 # Construire (onefile par défaut pour test rapide)
-echo "==> Construction PyInstaller (onefile)..."
-# Si vous préférez one-folder, remplacez --onefile par --onedir
-pyinstaller --noconfirm --name "$DIST_NAME" --onefile "$SRC"
+echo "==> Construction PyInstaller (onefile) via spec..."
+# Utiliser le spec (inclut l'icône)
+pyinstaller --noconfirm scan_port_gui.spec
 
 echo "==> Construction terminée. Fichiers générés dans dist/"
 if [ -f "dist/$DIST_NAME" ]; then
