@@ -25,7 +25,12 @@ sudo apt install python3-tk
 ---
 ## 🚀 Utilisation CLI
 ```bash
-python3 check_port.py [cible] [ports]
+python3 check_port.py <cible> [ports] [options]
+```
+
+### Aide CLI (disponible)
+```bash
+python3 check_port.py --help
 ```
 
 Exemples :
