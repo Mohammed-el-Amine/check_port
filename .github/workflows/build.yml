@@ -28,13 +28,13 @@ jobs:
       - name: Build (Linux)
         if: runner.os == 'Linux'
         run: |
-          chmod +x build_linux.sh
+          chmod +x scripts/build_linux.sh
           ./scripts/build_linux.sh
 
       - name: Build (macOS)
         if: runner.os == 'macOS'
         run: |
-          chmod +x build_macos.sh
+          chmod +x scripts/build_macos.sh
           ./scripts/build_macos.sh
 
       - name: Build (Windows)
