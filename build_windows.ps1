@@ -75,20 +75,19 @@ Write-Host '==> Mise à jour pip et installation de PyInstaller'
 python -m pip install --upgrade pip setuptools wheel
 python -m pip install pyinstaller
 
-Write-Host '==> Lancement de PyInstaller (onefile)'
-# Pour inclure des fichiers additionnels, utilisez --add-data "src;dest"
-# Build as windowed GUI (no console) and onefile for quick test; change to --onedir if you prefer folder
-pyinstaller --noconfirm --name $distName --onefile --windowed $src
+Write-Host '==> Lancement de PyInstaller (via spec)'
+# Utiliser le spec (inclut l'icône et la config GUI)
+pyinstaller --noconfirm scan_port_gui.spec
 
 Write-Host '==> Construction terminée. Artéfacts dans .\dist\'
-$exePath = Join-Path 'dist' $distName
+$exePath = Join-Path 'dist' "$distName.exe"
 if (Test-Path $exePath) {
     Write-Host "Executable: $exePath"
     Write-Host "Vous pouvez l'exécuter depuis PowerShell : .\dist\$distName.exe"
     # Proposer de lancer maintenant en arrière-plan (sans laisser le terminal ouvert)
     $launch = Read-Host "Voulez-vous lancer l'application maintenant en arrière-plan ? [y/N]"
     if ($launch -match '^[Yy]') {
-        $fullPath = Join-Path (Resolve-Path .\dist\$distName).Path "$distName.exe"
+        $fullPath = (Resolve-Path $exePath).Path
         Write-Host "Lancement en arrière-plan..."
         Start-Process -FilePath $fullPath -WindowStyle Hidden -WorkingDirectory (Join-Path (Get-Location) 'dist' )
         Write-Host "Application lancée en arrière-plan. Le terminal peut être fermé." -ForegroundColor Green
