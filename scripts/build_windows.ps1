@@ -9,6 +9,9 @@
 #>
 
 $ErrorActionPreference = 'Stop'
+$ProjectRoot = Split-Path -Parent $PSScriptRoot
+Set-Location $ProjectRoot
+
 $venv = '.venv_build'
 $distName = 'scan_port_gui'
 $src = 'gui_port_scanner.py'

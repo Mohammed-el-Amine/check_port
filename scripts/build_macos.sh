@@ -4,7 +4,7 @@ set -euo pipefail
 # Build macOS executable for gui_port_scanner.py using PyInstaller spec
 # Requires: Python 3.8+, tkinter (usually bundled on macOS), pyinstaller
 
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_DIR"
 
 # Create venv if missing

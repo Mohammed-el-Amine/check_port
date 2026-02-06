@@ -6,6 +6,8 @@
 #   ./build_linux.sh
 
 set -euo pipefail
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$PROJECT_DIR"
 PY=python3
 # Prefer system python (has tkinter) if available
 if [ -x "/usr/bin/python3" ]; then
