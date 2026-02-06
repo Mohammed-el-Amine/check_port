@@ -29,6 +29,8 @@ Scanner de ports avancé avec **interface graphique Tkinter** et **CLI**. Détec
 ### Optionnel (pip)
 ```bash
 pip install -r requirements.txt
+# ou
+pip install -e .
 ```
 
 ### Linux (Ubuntu/Debian)

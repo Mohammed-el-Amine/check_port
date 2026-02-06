@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scan-port"
+version = "2.2.0"
+description = "Advanced port scanner with Tkinter GUI and CLI"
+readme = "docs/en/README.md"
+license = {text = "MIT"}
+authors = [{name = "Mohammed El Amine"}]
+requires-python = ">=3.8"
+keywords = ["port-scanner", "network", "security", "tkinter", "cli", "gui"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/Mohammed-el-Amine/check_port"
+Repository = "https://github.com/Mohammed-el-Amine/check_port"
+Issues = "https://github.com/Mohammed-el-Amine/check_port/issues"
+Security = "https://github.com/Mohammed-el-Amine/check_port/security/policy"

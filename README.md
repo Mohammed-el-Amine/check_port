@@ -2,6 +2,9 @@
 
 [![Build](https://github.com/Mohammed-el-Amine/check_port/actions/workflows/build.yml/badge.svg)](https://github.com/Mohammed-el-Amine/check_port/actions/workflows/build.yml)
 ![Security Audit](https://img.shields.io/badge/security%20audit-passed-brightgreen)
+![License](https://img.shields.io/badge/license-MIT-blue)
+![Python](https://img.shields.io/badge/python-3.8%2B-blue)
+![Release](https://img.shields.io/github/v/release/Mohammed-el-Amine/check_port)
 
 Choisissez votre langue :
 

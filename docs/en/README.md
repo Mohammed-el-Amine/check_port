@@ -29,6 +29,8 @@ Advanced port scanner with **Tkinter GUI** and **CLI**. Smart service detection,
 ### Optional (pip)
 ```bash
 pip install -r requirements.txt
+# or
+pip install -e .
 ```
 
 ### Linux (Ubuntu/Debian)
