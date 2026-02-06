@@ -7,10 +7,10 @@ Ce document décrit comment produire des exécutables pour l'application GUI `gu
 
 Fichiers et scripts fournis
 ---------------------------
-- `build_linux.sh` : script Bash (virtualenv + PyInstaller via spec).
-- `build_windows.ps1` : script PowerShell (installe Python si besoin, build via spec).
-- `build_macos.sh` : script macOS pour construire via spec.
-- `build_all.sh` : script qui choisit le bon build selon l’OS.
+- `scripts/build_linux.sh` : script Bash (virtualenv + PyInstaller via spec).
+- `scripts/build_windows.ps1` : script PowerShell (installe Python si besoin, build via spec).
+- `scripts/build_macos.sh` : script macOS pour construire via spec.
+- `scripts/build_all.sh` : script qui choisit le bon build selon l’OS.
 - `scan_port_gui.spec` : spec PyInstaller utilisée pour un build reproductible.
 - `assets/icon.*` : icônes Windows/macOS/Linux.
 
@@ -22,29 +22,29 @@ Pré‑requis
 Build local (rapide) — Linux
 ----------------------------
 ```bash
-chmod +x build_linux.sh
-./build_linux.sh
+chmod +x scripts/build_linux.sh
+./scripts/build_linux.sh
 ```
 
 Build Windows (local)
 ---------------------
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\build_windows.ps1
+.\scripts/build_windows.ps1
 ```
 
 Build macOS (local)
 ------------------
 ```bash
-chmod +x build_macos.sh
-./build_macos.sh
+chmod +x scripts/build_macos.sh
+./scripts/build_macos.sh
 ```
 
 Build auto (tous OS)
 --------------------
 ```bash
-chmod +x build_all.sh
-./build_all.sh
+chmod +x scripts/build_all.sh
+./scripts/build_all.sh
 ```
 
 Utiliser le spec (recommandé pour CI)

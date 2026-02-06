@@ -29,20 +29,20 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           chmod +x build_linux.sh
-          ./build_linux.sh
+          ./scripts/build_linux.sh
 
       - name: Build (macOS)
         if: runner.os == 'macOS'
         run: |
           chmod +x build_macos.sh
-          ./build_macos.sh
+          ./scripts/build_macos.sh
 
       - name: Build (Windows)
         if: runner.os == 'Windows'
         shell: powershell
         run: |
           Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-          .\build_windows.ps1
+          .\scripts\build_windows.ps1
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

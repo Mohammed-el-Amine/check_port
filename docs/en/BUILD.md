@@ -7,10 +7,10 @@ This document explains how to build executables for `gui_port_scanner.py` (Linux
 
 Provided files
 --------------
-- `build_linux.sh`: Bash script (venv + PyInstaller via spec)
-- `build_windows.ps1`: PowerShell script (installs Python if needed, builds via spec)
-- `build_macos.sh`: macOS build script via spec
-- `build_all.sh`: auto-select build per OS
+- `scripts/build_linux.sh`: Bash script (venv + PyInstaller via spec)
+- `scripts/build_windows.ps1`: PowerShell script (installs Python if needed, builds via spec)
+- `scripts/build_macos.sh`: macOS build script via spec
+- `scripts/build_all.sh`: auto-select build per OS
 - `scan_port_gui.spec`: PyInstaller spec for reproducible builds
 - `assets/icon.*`: icons for Windows/macOS/Linux
 
@@ -22,29 +22,29 @@ Requirements
 Local build — Linux
 -------------------
 ```bash
-chmod +x build_linux.sh
-./build_linux.sh
+chmod +x scripts/build_linux.sh
+./scripts/build_linux.sh
 ```
 
 Local build — Windows
 ---------------------
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\build_windows.ps1
+.\scripts/build_windows.ps1
 ```
 
 Local build — macOS
 -------------------
 ```bash
-chmod +x build_macos.sh
-./build_macos.sh
+chmod +x scripts/build_macos.sh
+./scripts/build_macos.sh
 ```
 
 Auto build (any OS)
 -------------------
 ```bash
-chmod +x build_all.sh
-./build_all.sh
+chmod +x scripts/build_all.sh
+./scripts/build_all.sh
 ```
 
 Using the spec (recommended for CI)

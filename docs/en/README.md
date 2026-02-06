@@ -77,15 +77,15 @@ python3 check_port.py --show-dynamic localhost all
 ---
 ## 📦 Build & Packaging (PyInstaller)
 Scripts provided:
-- `build_linux.sh`
-- `build_windows.ps1`
-- `build_macos.sh`
-- `build_all.sh`
+- `scripts/build_linux.sh`
+- `scripts/build_windows.ps1`
+- `scripts/build_macos.sh`
+- `scripts/build_all.sh`
 - `scan_port_gui.spec`
 
 ### Quick Linux build
 ```bash
-./build_linux.sh
+./scripts/build_linux.sh
 ```
 
 ### GitHub Actions CI
@@ -108,7 +108,7 @@ Icons are in `assets/`:
 - `check_port.py` : scanner engine
 - `scan_port_gui.spec` : PyInstaller spec
 - `assets/` : icons
-- `build_*.sh` / `build_windows.ps1` : build scripts
+- `build_*.sh` / `scripts/build_windows.ps1` : build scripts
 - `.github/workflows/build.yml` : CI
 
 ---
