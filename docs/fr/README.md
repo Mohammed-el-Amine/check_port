@@ -26,6 +26,11 @@ Scanner de ports avancé avec **interface graphique Tkinter** et **CLI**. Détec
 - Python **3.8+**
 - Linux/macOS : `python3-tk` (Tkinter)
 
+### Optionnel (pip)
+```bash
+pip install -r requirements.txt
+```
+
 ### Linux (Ubuntu/Debian)
 ```bash
 sudo apt install python3-tk

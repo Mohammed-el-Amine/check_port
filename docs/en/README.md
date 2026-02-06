@@ -26,6 +26,11 @@ Advanced port scanner with **Tkinter GUI** and **CLI**. Smart service detection,
 - Python **3.8+**
 - Linux/macOS: `python3-tk` (Tkinter)
 
+### Optional (pip)
+```bash
+pip install -r requirements.txt
+```
+
 ### Linux (Ubuntu/Debian)
 ```bash
 sudo apt install python3-tk

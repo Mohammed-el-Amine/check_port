@@ -1,5 +1,8 @@
 # Scan Port — Documentation
 
+[![Build](https://github.com/Mohammed-el-Amine/check_port/actions/workflows/build.yml/badge.svg)](https://github.com/Mohammed-el-Amine/check_port/actions/workflows/build.yml)
+![Security Audit](https://img.shields.io/badge/security%20audit-passed-brightgreen)
+
 Choisissez votre langue :
 
 - 🇫🇷 **Français** → [docs/fr/README.md](docs/fr/README.md)
