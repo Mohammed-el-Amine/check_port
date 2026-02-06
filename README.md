@@ -119,6 +119,21 @@ Le `scan_port_gui.spec` choisit l’icône selon l’OS.
 - Préférez `top1000` pour un bon compromis
 
 ---
+## ❓ FAQ (rapide)
+**Q: Je ne vois pas l’icône sous Linux ?**
+R: Sous Linux, l’icône se gère via un fichier `.desktop`, pas dans le binaire.
+
+**Q: Le scan UDP est lent / bloque ?**
+R: UDP est best‑effort. Utilise `top1000` plutôt que `all`.
+
+**Q: Comment avoir les PID/processus ?**
+R: Lance en sudo (Linux/macOS) ou en Administrateur (Windows).
+
+---
+## 📄 Licence
+Ce projet est sous licence **MIT** (voir `LICENSE`).
+
+---
 ## ✅ Versions
 - v1.0 : scan de base
 - v2.0 : optimisations

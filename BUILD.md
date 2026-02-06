@@ -3,29 +3,32 @@ BUILD INSTRUCTIONS
 
 Objectif
 --------
-Ce document décrit comment produire des exécutables pour l'application GUI `gui_port_scanner.py` (Linux et Windows).
+Ce document décrit comment produire des exécutables pour l'application GUI `gui_port_scanner.py` (Linux, Windows et macOS).
 
 Fichiers et scripts fournis
 ---------------------------
-- `build_linux.sh` : script Bash pour créer un virtualenv, vérifier/install tkinter (si vous acceptez) et construire avec PyInstaller.
-- `build_windows.ps1` : script PowerShell pour Windows (détecte `winget`/`choco` et propose d'installer Python/tk si nécessaire).
-- `scan_port_gui.spec` : spec PyInstaller utilisé pour un build reproductible (fichier ajouté au dépôt).
+- `build_linux.sh` : script Bash pour créer un virtualenv, vérifier/install tkinter et construire avec PyInstaller (spec).
+- `build_windows.ps1` : script PowerShell pour Windows (installe Python si besoin, build via spec).
+- `build_macos.sh` : script macOS pour construire via spec.
+- `build_all.sh` : script qui choisit le bon build selon l’OS.
+- `scan_port_gui.spec` : spec PyInstaller utilisé pour un build reproductible.
+- `assets/icon.*` : icônes Windows/macOS/Linux.
 
 Pré-requis
 ----------
 - Python 3.8+ installé sur la machine de build.
 - Paquets système pour tkinter (Debian/Ubuntu: `sudo apt install python3-tk`).
 
-Build local (rapide) — utiliser le script Linux
----------------------------------------------
-Exécuter le script fourni qui s'occupe du virtualenv et de PyInstaller :
+Build local (rapide) — Linux
+----------------------------
+Exécuter le script fourni (virtualenv + PyInstaller via spec) :
 
 ```bash
 chmod +x build_linux.sh
 ./build_linux.sh
 ```
 
-Le script vérifie la présence de `tkinter` et propose, si vous l'autorisez, d'installer le paquet système nécessaire via `sudo`. Par défaut il construit un binaire `--onefile` pour test rapide ; modifiez le script si vous préférez `--onedir`.
+Le script vérifie la présence de `tkinter`. Le build est en **onefile**.
 
 Build Windows (local)
 ---------------------
@@ -34,6 +37,20 @@ Exécutez le script PowerShell sur une machine Windows :
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\build_windows.ps1
+```
+
+Build macOS (local)
+------------------
+```bash
+chmod +x build_macos.sh
+./build_macos.sh
+```
+
+Build auto (tous OS)
+--------------------
+```bash
+chmod +x build_all.sh
+./build_all.sh
 ```
 
 Utiliser le spec (recommandé pour CI)
@@ -45,6 +62,12 @@ pyinstaller scan_port_gui.spec
 ```
 
 Le fichier `scan_port_gui.spec` contient une entrée `datas` où vous pouvez ajouter des fichiers (icônes, exemples, assets) à embarquer.
+
+Icônes
+------
+- Windows: `assets/icon.ico`
+- macOS: `assets/icon.icns`
+- Linux: `assets/icon.png` (utilisée via .desktop)
 
 Accéder aux fichiers embarqués dans un onefile
 -------------------------------------------
