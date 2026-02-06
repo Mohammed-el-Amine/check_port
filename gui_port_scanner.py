@@ -2,7 +2,7 @@
 # Interface graphique Tkinter pour le scanner de ports avec privilèges admin
 
 import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext
+from tkinter import ttk, messagebox, scrolledtext, filedialog
 import tkinter.font as tkfont
 import sys
 import os
@@ -14,6 +14,8 @@ import shutil
 import threading
 import time
 import shlex
+import csv
+import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import socket
 
@@ -32,11 +34,14 @@ Guide d'utilisation - Scanner de Ports (Interface Graphique)
 2) Options
 - "Afficher les ports dynamiques" : cochez pour inclure les ports éphémères (32768-65535).
     Par défaut ils sont masqués pour réduire le bruit.
+- "Scan UDP" : active un scan UDP (plus lent, résultats best-effort).
+- "Mode lecture seule" : par défaut activé (empêche d'arrêter/kill des services).
 
 3) Contrôles principaux
 - 🚀 Démarrer le Scan : lance le scan en arrière-plan et affiche la progression.
 - ⏹️ Arrêter : stoppe le scan en cours (les résultats déjà trouvés restent affichés).
 - 🗑️ Effacer : supprime toutes les lignes de résultats affichées.
+- 📤 Export CSV/JSON : exporter les résultats.
 - ❓ Aide : ouvre cette fenêtre d'aide.
 
 4) Résultats
@@ -85,11 +90,14 @@ User Guide - Port Scanner (GUI)
 2) Options
 - "Show dynamic ports": include ephemeral ports (32768-65535).
     Hidden by default to reduce noise.
+- "UDP scan": enables UDP scan (slower, best-effort results).
+- "Read-only mode": enabled by default (prevents stop/kill actions).
 
 3) Main controls
 - 🚀 Start Scan: runs the scan in background and shows progress.
 - ⏹️ Stop: stops the current scan (results already found stay visible).
 - 🗑️ Clear: clears all results.
+- 📤 Export CSV/JSON: export results.
 - ❓ Help: opens this help window.
 
 4) Results
@@ -199,6 +207,8 @@ class PortScannerGUI:
         self.scan_results = []
         self.is_admin = self.check_admin_privileges()
         self.admin_dialog_shown = False  # Pour éviter de redemander
+        self.read_only_var = tk.BooleanVar(value=True)
+        self.scan_udp_var = tk.BooleanVar(value=False)
 
         # Compute a one-time scale based on the screen size and derive
         # scaled font tuples. This makes the UI responsive to screen
@@ -731,6 +741,21 @@ class PortScannerGUI:
         )
         self.show_dynamic_check.grid(row=0, column=0, sticky=tk.W)
 
+        self.scan_udp_check = ttk.Checkbutton(
+            options_frame,
+            text="Scan UDP (optionnel, plus lent)",
+            variable=self.scan_udp_var
+        )
+        self.scan_udp_check.grid(row=0, column=1, sticky=tk.W, padx=(12, 0))
+
+        self.read_only_check = ttk.Checkbutton(
+            options_frame,
+            text="Mode lecture seule (recommandé)",
+            variable=self.read_only_var,
+            command=self.update_action_state
+        )
+        self.read_only_check.grid(row=1, column=0, sticky=tk.W, pady=(6, 0))
+
         # Boutons
         buttons_frame = ttk.Frame(main_frame)
         buttons_frame.grid(row=3, column=0, columnspan=3, pady=6)
@@ -768,6 +793,22 @@ class PortScannerGUI:
         )
         self.help_button.grid(row=0, column=3, padx=(10,0))
 
+        self.export_csv_button = ttk.Button(
+            buttons_frame,
+            text="📤 Export CSV",
+            command=lambda: self.export_results("csv"),
+            style="TButton"
+        )
+        self.export_csv_button.grid(row=0, column=4, padx=(10, 0))
+
+        self.export_json_button = ttk.Button(
+            buttons_frame,
+            text="📤 Export JSON",
+            command=lambda: self.export_results("json"),
+            style="TButton"
+        )
+        self.export_json_button.grid(row=0, column=5, padx=(10, 0))
+
         # Résultats
         results_frame = ttk.LabelFrame(main_frame, text="Résultats du Scan", padding="10")
         results_frame.grid(row=4, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S))
@@ -777,12 +818,13 @@ class PortScannerGUI:
         # Treeview pour les résultats
         self.tree = ttk.Treeview(
             results_frame,
-            columns=("Port", "Service", "PID", "Processus", "Sécurité", "Actions"),
+            columns=("Proto", "Port", "Service", "PID", "Processus", "Sécurité", "Actions"),
             show="headings",
             height=15
         )
 
         # Configuration des colonnes
+        self.tree.heading("Proto", text="Proto")
         self.tree.heading("Port", text="Port")
         self.tree.heading("Service", text="Service")
         self.tree.heading("PID", text="PID")
@@ -790,6 +832,7 @@ class PortScannerGUI:
         self.tree.heading("Sécurité", text="Sécurité")
         self.tree.heading("Actions", text="Actions")
 
+        self.tree.column("Proto", width=70, anchor=tk.CENTER)
         self.tree.column("Port", width=80, anchor=tk.CENTER)
         self.tree.column("Service", width=120)
         self.tree.column("PID", width=80, anchor=tk.CENTER)
@@ -816,6 +859,7 @@ class PortScannerGUI:
         self.context_menu.add_command(label="💀 Tuer le processus", command=self.kill_process)
         self.context_menu.add_command(label="📋 Copier les détails", command=self.copy_details)
         self.tree.bind("<Button-3>", self.show_context_menu)
+        self.update_action_state()
 
         # Barre de progression
         self.progress_frame = ttk.Frame(main_frame)
@@ -972,7 +1016,8 @@ class PortScannerGUI:
                 return
             
             num_ports = len(ports)
-            self.root.after(0, lambda: self.progress_label.config(text=f"Scan de {num_ports} ports sur {target_ip}..."))
+            proto_note = "TCP" + (" + UDP" if self.scan_udp_var.get() else "")
+            self.root.after(0, lambda: self.progress_label.config(text=f"Scan de {num_ports} ports ({proto_note}) sur {target_ip}..."))
             
             # Configuration optimisée
             if num_ports > 10000:
@@ -988,27 +1033,31 @@ class PortScannerGUI:
             # Scan
             scanned_count = 0
             open_ports = []
+
+            protocols = ["tcp"] + (["udp"] if self.scan_udp_var.get() else [])
+            total_tasks = len(ports) * len(protocols)
             
             with ThreadPoolExecutor(max_workers=workers) as executor:
-                futures = {executor.submit(scan_port, target_ip, p, timeout): p for p in ports}
+                futures = {executor.submit(scan_port, target_ip, p, timeout, proto): (p, proto) for proto in protocols for p in ports}
                 
                 for future in as_completed(futures):
                     if not self.scan_running:  # Check si arrêt demandé
                         break
                     
                     port, status, banner = future.result()
+                    _, proto = futures[future]
                     scanned_count += 1
                     
                     if status == "open":
-                        open_ports.append((port, banner))
+                        open_ports.append((port, banner, proto))
                     
                     # Mise à jour de la progression
-                    progress = (scanned_count / num_ports) * 100
+                    progress = (scanned_count / total_tasks) * 100
                     self.root.after(0, lambda p=progress: self.progress_var.set(p))
                     
-                    if scanned_count % max(1, num_ports // 20) == 0:
-                        self.root.after(0, lambda c=scanned_count, t=num_ports: 
-                                       self.progress_label.config(text=f"Scanné {c}/{t} ports..."))
+                    if scanned_count % max(1, total_tasks // 20) == 0:
+                        self.root.after(0, lambda c=scanned_count, t=total_tasks: 
+                                       self.progress_label.config(text=f"Scanné {c}/{t} tâches..."))
             
             if not self.scan_running:
                 self.root.after(0, lambda: self.progress_label.config(text="Scan arrêté"))
@@ -1017,7 +1066,7 @@ class PortScannerGUI:
             # Filtrage des ports dynamiques
             show_dynamic = self.show_dynamic_var.get()
             if not show_dynamic:
-                display_ports = [(p, b) for (p, b) in open_ports if get_service_info(p)[0] != "Port-Dynamique"]
+                display_ports = [(p, b, proto) for (p, b, proto) in open_ports if get_service_info(p)[0] != "Port-Dynamique"]
             else:
                 display_ports = open_ports[:]
             
@@ -1033,7 +1082,7 @@ class PortScannerGUI:
         """Remplit le tableau avec les résultats"""
         self.scan_results = []
         
-        for port, banner in sorted(open_ports):
+        for port, banner, proto in sorted(open_ports, key=lambda x: (x[2], x[0])):
             service_name, service_cmd, _ = get_service_info(port)
             
             # Récupération des PID
@@ -1050,6 +1099,7 @@ class PortScannerGUI:
             
             # Ajout à l'arbre
             item_id = self.tree.insert("", tk.END, values=(
+                proto.upper(),
                 port,
                 service_name,
                 pid_display,
@@ -1061,6 +1111,7 @@ class PortScannerGUI:
             # Stockage des données complètes
             self.scan_results.append({
                 "item_id": item_id,
+                "protocol": proto,
                 "port": port,
                 "service_name": service_name,
                 "service_cmd": service_cmd,
@@ -1099,6 +1150,58 @@ class PortScannerGUI:
         self.scan_results = []
         self.progress_var.set(0)
         self.progress_label.config(text="Prêt pour le scan")
+
+    def update_action_state(self):
+        """Met à jour l'état des actions sensibles selon le mode lecture seule"""
+        ro = self.read_only_var.get()
+        try:
+            self.context_menu.entryconfig(0, state=(tk.DISABLED if ro else tk.NORMAL))
+            self.context_menu.entryconfig(1, state=(tk.DISABLED if ro else tk.NORMAL))
+        except Exception:
+            pass
+
+    def export_results(self, fmt="csv"):
+        """Exporte les résultats en CSV ou JSON"""
+        if not self.scan_results:
+            messagebox.showinfo("Export", "Aucun résultat à exporter")
+            return
+
+        ts = time.strftime("%Y%m%d_%H%M%S")
+        default_name = f"scan_results_{ts}.{fmt}"
+        filetypes = [(f"{fmt.upper()} files", f"*.{fmt}")]
+
+        path = filedialog.asksaveasfilename(defaultextension=f".{fmt}", filetypes=filetypes, initialfile=default_name)
+        if not path:
+            return
+
+        try:
+            rows = []
+            for r in self.scan_results:
+                rows.append({
+                    "protocol": r.get("protocol", "tcp"),
+                    "port": r.get("port"),
+                    "service_name": r.get("service_name"),
+                    "service_cmd": r.get("service_cmd"),
+                    "banner": r.get("banner"),
+                    "pid_infos": r.get("pid_infos", []),
+                    "target_ip": r.get("target_ip"),
+                })
+
+            if fmt == "json":
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(rows, f, ensure_ascii=False, indent=2)
+            else:
+                with open(path, "w", encoding="utf-8", newline="") as f:
+                    writer = csv.DictWriter(f, fieldnames=["protocol", "port", "service_name", "service_cmd", "banner", "pid_infos", "target_ip"])
+                    writer.writeheader()
+                    for row in rows:
+                        row = row.copy()
+                        row["pid_infos"] = "; ".join([f"{p.get('pid')}:{p.get('name')}" for p in row.get("pid_infos", [])])
+                        writer.writerow(row)
+
+            messagebox.showinfo("Export", f"Export réussi: {path}")
+        except Exception as e:
+            messagebox.showerror("Export", f"Erreur export: {e}")
     
     def get_selected_result(self):
         """Récupère l'élément sélectionné"""
@@ -1176,7 +1279,7 @@ class PortScannerGUI:
         # Résumé
         summary_label = tk.Label(
             frame,
-            text=f"Port {result['port']} - {result['service_name']} sur {result['target_ip']}",
+            text=f"{(result.get('protocol') or 'tcp').upper()} Port {result['port']} - {result['service_name']} sur {result['target_ip']}",
             font=self.scaled_font_sub,
             bg='white',
             fg=PALETTE['text']
@@ -1197,6 +1300,7 @@ class PortScannerGUI:
         details_lines = []
         details_lines.append(f"Service détecté : {result.get('service_name')}")
         details_lines.append(f"Service (cmd): {result.get('service_cmd') or 'Inconnu'}")
+        details_lines.append(f"Protocole: {(result.get('protocol') or 'tcp').upper()}")
         details_lines.append(f"Cible: {result.get('target_ip')}")
         details_lines.append("")
 
@@ -1259,7 +1363,7 @@ class PortScannerGUI:
         btn_font = self.scaled_font_ui
 
         # Bouton arrêter service
-        stop_state = tk.NORMAL if self.is_admin and result['service_cmd'] else tk.DISABLED
+        stop_state = tk.NORMAL if self.is_admin and result['service_cmd'] and (not self.read_only_var.get()) else tk.DISABLED
         tk.Button(
             buttons_frame,
             text=f"🔧 Arrêter {result['service_cmd'] or 'service'}",
@@ -1269,7 +1373,7 @@ class PortScannerGUI:
         ).pack(side=tk.LEFT, padx=(0, 5))
 
         # Bouton tuer processus
-        kill_state = tk.NORMAL if self.is_admin and result['pid_infos'] else tk.DISABLED
+        kill_state = tk.NORMAL if self.is_admin and result['pid_infos'] and (not self.read_only_var.get()) else tk.DISABLED
         tk.Button(
             buttons_frame,
             text="💀 Tuer les processus",
@@ -1305,6 +1409,9 @@ class PortScannerGUI:
     
     def stop_service_action(self, result, parent_window):
         """Arrête un service"""
+        if self.read_only_var.get():
+            messagebox.showinfo("Mode lecture seule", "Désactivez le mode lecture seule pour agir sur les services.")
+            return
         if not self.is_admin:
             messagebox.showerror("Erreur", "Privilèges administrateur requis")
             return
@@ -1336,6 +1443,9 @@ class PortScannerGUI:
     
     def kill_process_action(self, result, parent_window):
         """Tue les processus d'un port"""
+        if self.read_only_var.get():
+            messagebox.showinfo("Mode lecture seule", "Désactivez le mode lecture seule pour tuer un processus.")
+            return
         if not self.is_admin:
             messagebox.showerror("Erreur", "Privilèges administrateur requis")
             return
@@ -1475,7 +1585,8 @@ class PortScannerGUI:
         """Copie les détails dans le presse-papier"""
         result = self.get_selected_result()
         if result:
-            details = f"Port {result['port']} ({result['service_name']})"
+            proto = (result.get('protocol') or 'tcp').upper()
+            details = f"{proto} Port {result['port']} ({result['service_name']})"
             self.copy_to_clipboard(details)
     
     def copy_to_clipboard(self, text):

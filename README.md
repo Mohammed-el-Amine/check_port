@@ -7,6 +7,8 @@ Scanner de ports avancé avec **interface graphique Tkinter** et **CLI**. Détec
 - **Scans rapides** (common, top1000, top5000)
 - **Plages personnalisées** (`1-1024`, `8000-9000`)
 - **Ports spécifiques** (`22,80,443`)
+- **Option UDP** (best-effort)
+- **Export CSV/JSON** des résultats (GUI)
 - **Arrêt intelligent** des services (systemctl quand possible)
 - **Affichage PID / process** (avec droits admin)
 
@@ -33,6 +35,8 @@ python3 check_port.py 192.168.1.1 top1000
 python3 check_port.py 192.168.1.1 1-1024
 python3 check_port.py 192.168.1.1 22,80,443
 python3 check_port.py 192.168.1.1 all
+# TCP + UDP
+python3 check_port.py 192.168.1.1 top1000 --udp
 ```
 
 ---
@@ -48,6 +52,11 @@ sudo python3 gui_port_scanner.py
 ```
 
 ✅ L’UI propose un bouton **Relancer avec sudo** (Linux/macOS). Si besoin : relance manuelle ci‑dessus.
+
+### Options GUI
+- **Scan UDP** : active un scan UDP (plus lent, best‑effort)
+- **Mode lecture seule** : activé par défaut (empêche stop/kill)
+- **Export CSV/JSON** : boutons dédiés
 
 ---
 ## 🔐 Permissions

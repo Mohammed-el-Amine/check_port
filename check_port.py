@@ -37,8 +37,8 @@ def parse_ports(arg):
             ports.add(int(p))
     return sorted(p for p in ports if 0 <= p <= 65535)
 
-def scan_port(target_ip, port, timeout=DEFAULT_TIMEOUT):
-    """Scanne un port spécifique et retourne son statut"""
+def scan_port_tcp(target_ip, port, timeout=DEFAULT_TIMEOUT):
+    """Scanne un port TCP spécifique et retourne son statut"""
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(timeout)
@@ -59,6 +59,31 @@ def scan_port(target_ip, port, timeout=DEFAULT_TIMEOUT):
         return (port, "filtered", "timeout")
     except Exception as e:
         return (port, "filtered", str(e))
+
+
+def scan_port_udp(target_ip, port, timeout=DEFAULT_TIMEOUT):
+    """Scanne un port UDP (best-effort). No response = open|filtered."""
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.settimeout(timeout)
+        sock.sendto(b"", (target_ip, port))
+        try:
+            data, _ = sock.recvfrom(512)
+            info = data.decode(errors="ignore").strip()
+            sock.close()
+            return (port, "open", f"udp/response: {info}" if info else "udp/response")
+        except socket.timeout:
+            sock.close()
+            return (port, "open", "udp/no-response")
+    except Exception as e:
+        return (port, "filtered", f"udp/error: {e}")
+
+
+def scan_port(target_ip, port, timeout=DEFAULT_TIMEOUT, proto="tcp"):
+    """Scanne un port selon le protocole"""
+    if proto.lower() == "udp":
+        return scan_port_udp(target_ip, port, timeout)
+    return scan_port_tcp(target_ip, port, timeout)
 
 def get_local_ips():
     """Récupère toutes les adresses IP locales de la machine"""
@@ -409,6 +434,7 @@ def show_help():
     print("  '22,80,443'  : ports spécifiques")
     print("  'analyze'    : analyser des ports spécifiques")
     print("  --show-dynamic: afficher aussi les ports dynamiques/éphémères (par défaut masqués)")
+    print("  --udp         : activer le scan UDP (en plus du TCP)")
     print()
     print("EXEMPLES:")
     print("  python3 check_port.py 192.168.1.1 all")
@@ -430,6 +456,11 @@ def main():
     if "--show-dynamic" in args:
         show_dynamic = True
         args = [a for a in args if a != "--show-dynamic"]
+
+    use_udp = False
+    if "--udp" in args:
+        use_udp = True
+        args = [a for a in args if a != "--udp"]
 
     if len(args) >= 1:
         target = args[0]
@@ -459,33 +490,38 @@ def main():
         workers = min(DEFAULT_WORKERS, max(50, num_ports))
 
     print(f"Début du scan sur: {target} ({target_ip})")
-    print(f"Ports à scanner: {num_ports} ports")
+    proto_note = "TCP" + (" + UDP" if use_udp else "")
+    print(f"Ports à scanner: {num_ports} ports ({proto_note})")
     print(f"Configuration: timeout={timeout}s, workers={workers}")
     
-    if num_ports > 1000:
+    if (num_ports * (2 if use_udp else 1)) > 1000:
         print("📊 Affichage du progrès activé pour les gros scans...")
     
     start = time.time()
     open_ports = []
     scanned_count = 0
     progress_interval = max(100, num_ports // 20)
-    
+
+    protocols = ["tcp"] + (["udp"] if use_udp else [])
+    total_tasks = num_ports * len(protocols)
+
     with ThreadPoolExecutor(max_workers=workers) as ex:
-        futures = {ex.submit(scan_port, target_ip, p, timeout): p for p in ports}
+        futures = {ex.submit(scan_port, target_ip, p, timeout, proto): (p, proto) for proto in protocols for p in ports}
         for fut in as_completed(futures):
             port, status, info = fut.result()
+            _, proto = futures[fut]
             scanned_count += 1
             
             if status == "open":
-                open_ports.append((port, info))
-                print(f"🟢 port {port} is OPEN{f' - {info[:50]}' if info else ''}")
+                open_ports.append((port, info, proto))
+                print(f"🟢 {proto.upper()} port {port} is OPEN{f' - {info[:50]}' if info else ''}")
             
-            if num_ports > 1000 and scanned_count % progress_interval == 0:
-                percentage = (scanned_count / num_ports) * 100
+            if total_tasks > 1000 and scanned_count % progress_interval == 0:
+                percentage = (scanned_count / total_tasks) * 100
                 elapsed = time.time() - start
                 rate = scanned_count / elapsed if elapsed > 0 else 0
-                eta = (num_ports - scanned_count) / rate if rate > 0 else 0
-                print(f"📈 Progrès: {scanned_count}/{num_ports} ({percentage:.1f}%) - "
+                eta = (total_tasks - scanned_count) / rate if rate > 0 else 0
+                print(f"📈 Progrès: {scanned_count}/{total_tasks} ({percentage:.1f}%) - "
                       f"Vitesse: {rate:.0f} ports/s - ETA: {eta:.0f}s")
     
     end = time.time()
@@ -495,7 +531,7 @@ def main():
 
     # Filtrer les ports dynamiques par défaut (masqués)
     if not show_dynamic:
-        display_ports = [ (p,b) for (p,b) in open_ports if get_service_info(p)[0] != "Port-Dynamique" ]
+        display_ports = [ (p,b,proto) for (p,b,proto) in open_ports if get_service_info(p)[0] != "Port-Dynamique" ]
     else:
         display_ports = open_ports[:]
 
@@ -506,7 +542,7 @@ def main():
         return
 
     print(f"\n🎯 {len(display_ports)} ports ouverts trouvés:")
-    for p, banner in sorted(display_ports):
+    for p, banner, proto in sorted(display_ports, key=lambda x: (x[2], x[0])):
         service_name, _, _ = get_service_info(p)
         banner_info = f" - {banner[:60]}..." if banner and len(banner) > 60 else f" - {banner}" if banner else ""
 
@@ -522,7 +558,7 @@ def main():
         port_analysis = analyze_port(p)
         security_icon = port_analysis["securite"][:2]  # Récupère juste l'emoji
 
-        print(f"  🔓 Port {p} ({service_name}) {security_icon}  {pid_display}")
+        print(f"  🔓 {proto.upper()} Port {p} ({service_name}) {security_icon}  {pid_display}")
         print(f"      📋 {port_analysis['description']}")
         if banner:
             print(f"      🏷️  Banner: {banner[:80]}...")
