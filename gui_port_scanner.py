@@ -760,7 +760,7 @@ class PortScannerGUI:
         wrap = ttk.Frame(self.root, style="TFrame")
         wrap.grid(row=0, column=0, sticky="nsew")
         wrap.columnconfigure(0, weight=1)
-        wrap.rowconfigure(2, weight=1)
+        wrap.rowconfigure(3, weight=1)
 
         # ─────────────────────────────────────────────────────────────────────
         # Header — dark navy bar
@@ -856,7 +856,7 @@ class PortScannerGUI:
         # Action toolbar
         # ─────────────────────────────────────────────────────────────────────
         toolbar = tk.Frame(wrap, bg=PALETTE["bg"])
-        toolbar.grid(row=1, column=0, sticky="ew", padx=12, pady=(8, 4))
+        toolbar.grid(row=2, column=0, sticky="ew", padx=12, pady=(6, 4))
 
         self.scan_button = ttk.Button(
             toolbar, text="▶  Démarrer le Scan",
@@ -905,7 +905,7 @@ class PortScannerGUI:
         # Results card
         # ─────────────────────────────────────────────────────────────────────
         res_outer, res_card = self._make_card(wrap, padx=0, pady=0)
-        res_outer.grid(row=2, column=0, sticky="nsew", padx=12, pady=(0, 4))
+        res_outer.grid(row=3, column=0, sticky="nsew", padx=12, pady=(0, 4))
         res_card.columnconfigure(0, weight=1)
         res_card.rowconfigure(1, weight=1)
 
@@ -967,7 +967,7 @@ class PortScannerGUI:
         # Progress footer
         # ─────────────────────────────────────────────────────────────────────
         footer = tk.Frame(wrap, bg=PALETTE["bg"])
-        footer.grid(row=3, column=0, sticky="ew", padx=12, pady=(0, 10))
+        footer.grid(row=4, column=0, sticky="ew", padx=12, pady=(0, 10))
         footer.columnconfigure(0, weight=1)
 
         self.progress_var = tk.DoubleVar()
