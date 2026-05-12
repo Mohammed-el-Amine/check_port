@@ -125,21 +125,52 @@ Questions / improvements
 
 """
 
-# Palette macOS-like (light)
+def _system_font():
+    import platform as _plat
+    s = _plat.system().lower()
+    if s.startswith("darwin"):
+        return "SF Pro Text"
+    if s.startswith("win"):
+        return "Segoe UI"
+    for name in ("Ubuntu", "Cantarell", "Noto Sans", "DejaVu Sans"):
+        try:
+            import tkinter as _tk, tkinter.font as _tf
+            _r = _tk.Tk()
+            _r.withdraw()
+            families = _tf.families(_r)
+            _r.destroy()
+            if name in families:
+                return name
+        except Exception:
+            pass
+    return "TkDefaultFont"
+
+_FF = _system_font()
+
 PALETTE = {
-    # macOS Sonoma-like palette
-    "bg": "#f3f4f6",        # window background
-    "card": "#ffffff",      # card / panel background
-    "accent": "#9ca3af",    # soft gray accent
-    "muted": "#6b7280",     # muted text
-    "text": "#0b1320",      # primary text
-    "danger": "#ff375f",    # macOS red
+    "bg":           "#f1f5f9",   # slate-100 window background
+    "card":         "#ffffff",   # white panel
+    "border":       "#e2e8f0",   # slate-200 subtle border
+    "accent":       "#3b82f6",   # blue-500 primary action
+    "accent_dark":  "#2563eb",   # blue-600 hover
+    "accent_light": "#eff6ff",   # blue-50 selection bg
+    "success":      "#10b981",   # emerald-500
+    "success_bg":   "#ecfdf5",
+    "warning":      "#f59e0b",   # amber-500
+    "warning_bg":   "#fffbeb",
+    "danger":       "#ef4444",   # red-500
+    "text":         "#1e293b",   # slate-800
+    "muted":        "#64748b",   # slate-500
+    "light":        "#94a3b8",   # slate-400
+    "header_bg":    "#0f172a",   # slate-900
+    "header_fg":    "#f8fafc",   # slate-50
+    "header_sub":   "#475569",   # slate-600
+    "row_alt":      "#f8fafc",   # zebra stripe
 }
 
-# Polices (San Francisco preferred with fallbacks)
-FONT_TITLE = ("SF Pro Display", 18, "bold")
-FONT_SUB = ("SF Pro Text", 12)
-FONT_UI = ("SF Pro Text", 12)
+FONT_TITLE = (_FF, 17, "bold")
+FONT_SUB   = (_FF, 11, "bold")
+FONT_UI    = (_FF, 10)
 
 
 # Import des fonctions du scanner principal
@@ -607,278 +638,351 @@ class PortScannerGUI:
                 f"Impossible de relancer avec privilèges admin: {e}\n\nContinuation en mode limité."
             )
 
+    def _make_card(self, parent, padx=12, pady=8):
+        """White card with a 1-px border, returns the inner frame."""
+        outer = tk.Frame(parent, bg=PALETTE["border"])
+        inner = tk.Frame(outer, bg=PALETTE["card"], padx=padx, pady=pady)
+        inner.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
+        return outer, inner
+
+    def _add_hover(self, widget, style_normal, style_active):
+        widget.bind("<Enter>", lambda _: widget.configure(style=style_active))
+        widget.bind("<Leave>", lambda _: widget.configure(style=style_normal))
+
     def setup_ui(self):
         """Configure l'interface utilisateur"""
-        # Style
         style = ttk.Style()
-        # Prefer native-looking theme on macOS when available
         try:
-            if platform.system().lower().startswith('darwin'):
-                style.theme_use('aqua')
-            else:
-                style.theme_use('clam')
+            style.theme_use('clam')
         except Exception:
             pass
 
-        # Base frame and label styles
-        style.configure("TFrame", background=PALETTE["bg"]) 
-        style.configure("TLabel", background=PALETTE["bg"], foreground=PALETTE["text"], font=self.scaled_font_ui)
-        style.configure("TLabelframe", background=PALETTE["bg"], foreground=PALETTE["text"], font=self.scaled_font_ui)
-        style.configure("TLabelframe.Label", background=PALETTE["bg"], foreground=PALETTE["muted"], font=self.scaled_font_ui)
+        ff = self.scaled_font_ui[0]
+        fs = self.scaled_font_ui[1] if len(self.scaled_font_ui) > 1 else 10
 
-        # Buttons (Sonoma-like)
-        style.configure("TButton", font=self.scaled_font_ui, padding=(8, 5), background=PALETTE["card"], borderwidth=0, focusthickness=0, foreground=PALETTE["text"])
-        style.configure("Accent.TButton", background=PALETTE["accent"], foreground="#ffffff", relief="flat")
-        style.map("Accent.TButton",
-                  background=[('active', '#0b74ff'), ('disabled', '#cbd5e1')],
-                  foreground=[('disabled', '#e5e7eb')])
+        # ── Base ──────────────────────────────────────────────────────────────
+        style.configure("TFrame",    background=PALETTE["bg"])
+        style.configure("TLabel",    background=PALETTE["bg"],   foreground=PALETTE["text"],  font=self.scaled_font_ui)
+        style.configure("Card.TFrame", background=PALETTE["card"])
+        style.configure("Card.TLabel", background=PALETTE["card"], foreground=PALETTE["text"], font=self.scaled_font_ui)
+        style.configure("Muted.TLabel", background=PALETTE["card"], foreground=PALETTE["muted"], font=(ff, max(9, fs-1)))
 
-        # Inputs
-        style.configure("TEntry", fieldbackground=PALETTE["card"], foreground=PALETTE["text"], background=PALETTE["card"], insertcolor=PALETTE["text"], borderwidth=0)
-        style.configure("TCombobox", fieldbackground=PALETTE["card"], foreground=PALETTE["text"], background=PALETTE["card"], arrowsize=12)
+        # ── Buttons ───────────────────────────────────────────────────────────
+        btn_pad = (14, 7)
+        style.configure("TButton",
+            background=PALETTE["card"], foreground=PALETTE["text"],
+            font=self.scaled_font_ui, padding=btn_pad,
+            relief="flat", borderwidth=1, focusthickness=0,
+        )
+        style.map("TButton",
+            background=[("active", PALETTE["bg"]), ("pressed", PALETTE["border"]), ("disabled", PALETTE["border"])],
+            foreground=[("disabled", PALETTE["light"])],
+            relief=[("pressed", "flat")],
+        )
 
-        # Treeview / headings - Sonoma clean header
+        style.configure("Primary.TButton",
+            background=PALETTE["accent"], foreground="#ffffff",
+            font=(ff, fs, "bold"), padding=btn_pad,
+            relief="flat", borderwidth=0, focusthickness=0,
+        )
+        style.map("Primary.TButton",
+            background=[("active", PALETTE["accent_dark"]), ("pressed", PALETTE["accent_dark"]), ("disabled", PALETTE["border"])],
+            foreground=[("disabled", PALETTE["light"])],
+        )
+
+        style.configure("Stop.TButton",
+            background="#fef2f2", foreground=PALETTE["danger"],
+            font=self.scaled_font_ui, padding=btn_pad,
+            relief="flat", borderwidth=1, focusthickness=0,
+        )
+        style.map("Stop.TButton",
+            background=[("active", "#fee2e2"), ("pressed", "#fecaca"), ("disabled", PALETTE["border"])],
+            foreground=[("disabled", PALETTE["light"])],
+        )
+
+        # ── Inputs ────────────────────────────────────────────────────────────
+        style.configure("TEntry",
+            fieldbackground=PALETTE["card"], foreground=PALETTE["text"],
+            background=PALETTE["card"], insertcolor=PALETTE["text"],
+            borderwidth=1, padding=(6, 4),
+        )
+        style.configure("TCombobox",
+            fieldbackground=PALETTE["card"], foreground=PALETTE["text"],
+            background=PALETTE["card"], arrowsize=12, borderwidth=1,
+        )
+        style.configure("TCheckbutton",
+            background=PALETTE["card"], foreground=PALETTE["text"],
+            font=self.scaled_font_ui,
+        )
+        style.map("TCheckbutton", background=[("active", PALETTE["card"])])
+
+        # ── Treeview ──────────────────────────────────────────────────────────
         style.configure("Treeview",
-                        background=PALETTE["card"],
-                        fieldbackground=PALETTE["card"],
-                        foreground=PALETTE["text"],
-                        rowheight=24,
-                        font=self.scaled_font_ui)
-        style.configure("Treeview.Heading", background="#f1f3f7", foreground=PALETTE["text"], font=self.scaled_font_sub)
-        # Build heading font from scaled sub font (ensure bold)
-        try:
-            heading_family = self.scaled_font_sub[0]
-            heading_size = int(self.scaled_font_sub[1]) if len(self.scaled_font_sub) > 1 else 11
-        except Exception:
-            heading_family = FONT_SUB[0]
-            heading_size = 11
+            background=PALETTE["card"], fieldbackground=PALETTE["card"],
+            foreground=PALETTE["text"], rowheight=28,
+            font=self.scaled_font_ui, borderwidth=0, relief="flat",
+        )
         style.configure("Treeview.Heading",
-                        background=PALETTE["card"],
-                        foreground=PALETTE["muted"],
-                        font=(heading_family, max(10, heading_size), "bold"))
+            background=PALETTE["bg"], foreground=PALETTE["muted"],
+            font=(ff, max(9, fs), "bold"), relief="flat", padding=(8, 6),
+        )
+        style.map("Treeview",
+            background=[("selected", PALETTE["accent_light"])],
+            foreground=[("selected", PALETTE["accent_dark"])],
+        )
+        style.map("Treeview.Heading",
+            background=[("active", PALETTE["border"])],
+        )
 
-        # Progressbar
-        style.configure("Colored.Horizontal.TProgressbar", troughcolor=PALETTE["card"], background=PALETTE["accent"]) 
-        
-        # Frame principal (card)
-        main_frame = ttk.Frame(self.root, padding="14", style="TFrame")
-        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=12, pady=12)
-        # Root bg
+        # ── Scrollbar ─────────────────────────────────────────────────────────
+        style.configure("TScrollbar",
+            background=PALETTE["bg"], troughcolor=PALETTE["bg"],
+            borderwidth=0, arrowsize=12,
+        )
+        style.map("TScrollbar", background=[("active", PALETTE["border"])])
+
+        # ── Progressbar ───────────────────────────────────────────────────────
+        style.configure("Modern.Horizontal.TProgressbar",
+            troughcolor=PALETTE["border"], background=PALETTE["accent"],
+            borderwidth=0, thickness=6,
+        )
+
+        # ─────────────────────────────────────────────────────────────────────
+        # Root setup
+        # ─────────────────────────────────────────────────────────────────────
         try:
             self.root.configure(bg=PALETTE["bg"])
         except Exception:
             pass
-
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
-        main_frame.columnconfigure(1, weight=1)
-        main_frame.rowconfigure(4, weight=1)
 
-        # Bandeau titre
-        banner = tk.Frame(main_frame, bg=PALETTE["accent"], height=64)
-        banner.grid(row=0, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 12))
-        banner.grid_propagate(False)
-        title_label = tk.Label(
-            banner,
-            text="🔍 Scanner de Ports Avancé",
-            font=self.scaled_font_title,
-            bg=PALETTE["accent"],
-            fg="#ffffff"
-        )
-        title_label.pack(side=tk.LEFT, padx=18, pady=10)
-        # small subtitle on right
-        subtitle = tk.Label(banner, text="Interface graphique — gestion et diagnostics", font=self.scaled_font_sub, bg=PALETTE["accent"], fg="#e6f0ff")
-        subtitle.pack(side=tk.RIGHT, padx=12)
+        wrap = ttk.Frame(self.root, style="TFrame")
+        wrap.grid(row=0, column=0, sticky="nsew")
+        wrap.columnconfigure(0, weight=1)
+        wrap.rowconfigure(2, weight=1)
 
-        # Status admin
-        status_fg = "#10b981" if self.is_admin else "#f59e0b"
+        # ─────────────────────────────────────────────────────────────────────
+        # Header — dark navy bar
+        # ─────────────────────────────────────────────────────────────────────
+        header = tk.Frame(wrap, bg=PALETTE["header_bg"], height=70)
+        header.grid(row=0, column=0, sticky="ew")
+        header.grid_propagate(False)
+        header.columnconfigure(1, weight=1)
+
+        left_pad = tk.Frame(header, bg=PALETTE["header_bg"])
+        left_pad.grid(row=0, column=0, sticky="ns", padx=(18, 0))
+
+        dot = tk.Label(left_pad, text="●", font=(ff, 22), bg=PALETTE["header_bg"], fg=PALETTE["accent"])
+        dot.pack(side=tk.LEFT, padx=(0, 10), pady=16)
+
+        title_stack = tk.Frame(left_pad, bg=PALETTE["header_bg"])
+        title_stack.pack(side=tk.LEFT, pady=14)
+        tk.Label(title_stack, text="Port Scanner", font=self.scaled_font_title,
+                 bg=PALETTE["header_bg"], fg=PALETTE["header_fg"]).pack(anchor="w")
+        tk.Label(title_stack, text="Analyse & Diagnostic Réseau",
+                 font=(ff, max(9, fs - 1)), bg=PALETTE["header_bg"], fg=PALETTE["header_sub"]).pack(anchor="w")
+
+        # Admin status badge on the right
+        if self.is_admin:
+            badge_bg, badge_fg, badge_txt = PALETTE["success"], "#ffffff", " ✓ Administrateur "
+        else:
+            badge_bg, badge_fg, badge_txt = "#92400e", "#fef3c7", " ⚠ Mode limité "
         self.status_label = tk.Label(
-            main_frame,
-            text="⚠️ Privilèges administrateur non détectés" if not self.is_admin else "✅ Privilèges administrateur détectés",
-            fg=status_fg,
-            bg=PALETTE["bg"],
-            font=self.scaled_font_sub
+            header, text=badge_txt,
+            bg=badge_bg, fg=badge_fg,
+            font=(ff, max(9, fs - 1), "bold"),
+            padx=2, pady=2, relief="flat",
         )
-        self.status_label.grid(row=1, column=0, columnspan=3, pady=(0, 6))
+        self.status_label.grid(row=0, column=2, sticky="e", padx=18)
 
-        # Frame de configuration
-        config_frame = ttk.LabelFrame(main_frame, text="Configuration du Scan", padding="10")
-        config_frame.grid(row=2, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 10))
-        config_frame.columnconfigure(1, weight=1)
+        # ─────────────────────────────────────────────────────────────────────
+        # Configuration card
+        # ─────────────────────────────────────────────────────────────────────
+        cfg_outer, cfg_card = self._make_card(wrap, padx=14, pady=12)
+        cfg_outer.grid(row=1, column=0, sticky="ew", padx=12, pady=(10, 0))
+        cfg_card.columnconfigure(1, weight=1)
+        cfg_card.columnconfigure(5, weight=1)
+
+        # Section label
+        tk.Label(cfg_card, text="CONFIGURATION DU SCAN",
+                 bg=PALETTE["card"], fg=PALETTE["muted"],
+                 font=(ff, max(8, fs - 2), "bold")).grid(
+            row=0, column=0, columnspan=6, sticky="w", pady=(0, 8))
 
         # Cible
-        ttk.Label(config_frame, text="Cible:").grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
+        tk.Label(cfg_card, text="Cible", bg=PALETTE["card"], fg=PALETTE["muted"],
+                 font=(ff, max(9, fs - 1), "bold")).grid(row=1, column=0, sticky="w", padx=(0, 6))
         self.target_var = tk.StringVar(value=DEFAULT_TARGET)
-        self.target_entry = ttk.Entry(config_frame, textvariable=self.target_var, width=20)
-        self.target_entry.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=(0, 10))
+        self.target_entry = ttk.Entry(cfg_card, textvariable=self.target_var, width=22)
+        self.target_entry.grid(row=1, column=1, sticky="ew", padx=(0, 18))
 
         # Ports
-        ttk.Label(config_frame, text="Ports:").grid(row=0, column=2, sticky=tk.W, padx=(10, 5))
+        tk.Label(cfg_card, text="Ports", bg=PALETTE["card"], fg=PALETTE["muted"],
+                 font=(ff, max(9, fs - 1), "bold")).grid(row=1, column=2, sticky="w", padx=(0, 6))
         self.ports_var = tk.StringVar(value="common")
         self.ports_var.trace_add("write", lambda *args: self.update_udp_availability())
         self.ports_combo = ttk.Combobox(
-            config_frame, 
-            textvariable=self.ports_var,
+            cfg_card, textvariable=self.ports_var, width=16,
             values=["common", "top1000", "top5000", "all", "1-1024", "22,80,443,3306"],
-            width=15
         )
-        self.ports_combo.grid(row=0, column=3, sticky=tk.W)
+        self.ports_combo.grid(row=1, column=3, sticky="w", padx=(0, 18))
 
-        # Options
-        options_frame = ttk.Frame(config_frame)
-        options_frame.grid(row=1, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=(10, 0))
+        # Options row
+        opts = tk.Frame(cfg_card, bg=PALETTE["card"])
+        opts.grid(row=2, column=0, columnspan=6, sticky="w", pady=(10, 0))
 
         self.show_dynamic_var = tk.BooleanVar(value=False)
         self.show_dynamic_check = ttk.Checkbutton(
-            options_frame,
-            text="Afficher les ports dynamiques",
-            variable=self.show_dynamic_var
+            opts, text="Afficher les ports dynamiques",
+            variable=self.show_dynamic_var, style="TCheckbutton",
         )
-        self.show_dynamic_check.grid(row=0, column=0, sticky=tk.W)
+        self.show_dynamic_check.pack(side=tk.LEFT)
 
         self.scan_udp_check = ttk.Checkbutton(
-            options_frame,
-            text="Scan UDP (optionnel, plus lent)",
-            variable=self.scan_udp_var
+            opts, text="Scan UDP  (plus lent)",
+            variable=self.scan_udp_var, style="TCheckbutton",
         )
-        self.scan_udp_check.grid(row=0, column=1, sticky=tk.W, padx=(12, 0))
-
+        self.scan_udp_check.pack(side=tk.LEFT, padx=(20, 0))
 
         self.udp_hint = tk.Label(
-            options_frame,
-            text="UDP auto-désactivé si le scan est trop large",
-            bg=PALETTE["bg"],
-            fg=PALETTE["muted"],
-            font=self.scaled_font_sub
+            opts, text="— auto-désactivé sur les gros scans",
+            bg=PALETTE["card"], fg=PALETTE["light"],
+            font=(ff, max(9, fs - 1)),
         )
-        self.udp_hint.grid(row=1, column=1, sticky=tk.W, padx=(12, 0), pady=(6, 0))
+        self.udp_hint.pack(side=tk.LEFT, padx=(6, 0))
 
-        # Boutons
-        buttons_frame = ttk.Frame(main_frame)
-        buttons_frame.grid(row=3, column=0, columnspan=3, pady=6)
+        # ─────────────────────────────────────────────────────────────────────
+        # Action toolbar
+        # ─────────────────────────────────────────────────────────────────────
+        toolbar = tk.Frame(wrap, bg=PALETTE["bg"])
+        toolbar.grid(row=1, column=0, sticky="ew", padx=12, pady=(8, 4))
 
         self.scan_button = ttk.Button(
-            buttons_frame,
-            text="🚀 Démarrer le Scan",
-            command=self.start_scan,
-            style="Accent.TButton"
+            toolbar, text="▶  Démarrer le Scan",
+            command=self.start_scan, style="Primary.TButton",
         )
-        self.scan_button.grid(row=0, column=0, padx=(0, 10))
+        self.scan_button.pack(side=tk.LEFT, padx=(0, 6))
 
         self.stop_button = ttk.Button(
-            buttons_frame,
-            text="⏹️ Arrêter",
-            command=self.stop_scan,
-            state=tk.DISABLED,
-            style="TButton"
+            toolbar, text="■  Arrêter",
+            command=self.stop_scan, state=tk.DISABLED, style="Stop.TButton",
         )
-        self.stop_button.grid(row=0, column=1, padx=(0, 10))
+        self.stop_button.pack(side=tk.LEFT, padx=(0, 6))
 
         self.clear_button = ttk.Button(
-            buttons_frame,
-            text="🗑️ Effacer",
-            command=self.clear_results,
-            style="TButton"
+            toolbar, text="✕  Effacer",
+            command=self.clear_results, style="TButton",
         )
-        self.clear_button.grid(row=0, column=2)
+        self.clear_button.pack(side=tk.LEFT, padx=(0, 18))
 
-        self.help_button = ttk.Button(
-            buttons_frame,
-            text="❓ Aide",
-            command=self.show_help_window,
-            style="TButton"
-        )
-        self.help_button.grid(row=0, column=3, padx=(10,0))
+        # Separator
+        sep = tk.Frame(toolbar, bg=PALETTE["border"], width=1, height=28)
+        sep.pack(side=tk.LEFT, padx=(0, 18), pady=4)
 
         self.export_csv_button = ttk.Button(
-            buttons_frame,
-            text="📤 Export CSV",
-            command=lambda: self.export_results("csv"),
-            style="TButton"
+            toolbar, text="↑  CSV",
+            command=lambda: self.export_results("csv"), style="TButton",
         )
-        self.export_csv_button.grid(row=0, column=4, padx=(10, 0))
+        self.export_csv_button.pack(side=tk.LEFT, padx=(0, 6))
 
         self.export_json_button = ttk.Button(
-            buttons_frame,
-            text="📤 Export JSON",
-            command=lambda: self.export_results("json"),
-            style="TButton"
+            toolbar, text="↑  JSON",
+            command=lambda: self.export_results("json"), style="TButton",
         )
-        self.export_json_button.grid(row=0, column=5, padx=(10, 0))
+        self.export_json_button.pack(side=tk.LEFT, padx=(0, 18))
 
-        # Résultats
-        results_frame = ttk.LabelFrame(main_frame, text="Résultats du Scan", padding="10")
-        results_frame.grid(row=4, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S))
-        results_frame.columnconfigure(0, weight=1)
-        results_frame.rowconfigure(0, weight=1)
+        sep2 = tk.Frame(toolbar, bg=PALETTE["border"], width=1, height=28)
+        sep2.pack(side=tk.LEFT, padx=(0, 18), pady=4)
 
-        # Treeview pour les résultats
+        self.help_button = ttk.Button(
+            toolbar, text="?  Aide",
+            command=self.show_help_window, style="TButton",
+        )
+        self.help_button.pack(side=tk.LEFT)
+
+        # ─────────────────────────────────────────────────────────────────────
+        # Results card
+        # ─────────────────────────────────────────────────────────────────────
+        res_outer, res_card = self._make_card(wrap, padx=0, pady=0)
+        res_outer.grid(row=2, column=0, sticky="nsew", padx=12, pady=(0, 4))
+        res_card.columnconfigure(0, weight=1)
+        res_card.rowconfigure(1, weight=1)
+
+        # Results header bar
+        res_header = tk.Frame(res_card, bg=PALETTE["bg"])
+        res_header.grid(row=0, column=0, columnspan=2, sticky="ew", padx=0, pady=0)
+        tk.Label(res_header, text="RÉSULTATS DU SCAN",
+                 bg=PALETTE["bg"], fg=PALETTE["muted"],
+                 font=(ff, max(8, fs - 2), "bold")).pack(
+            side=tk.LEFT, padx=12, pady=6)
+
+        # Treeview
         self.tree = ttk.Treeview(
-            results_frame,
+            res_card,
             columns=("Proto", "Port", "Service", "PID", "Processus", "Sécurité", "Actions"),
-            show="headings",
-            height=15
+            show="headings", selectmode="browse",
         )
+        col_defs = [
+            ("Proto",     64,  tk.CENTER),
+            ("Port",      72,  tk.CENTER),
+            ("Service",   130, tk.W),
+            ("PID",       80,  tk.CENTER),
+            ("Processus", 200, tk.W),
+            ("Sécurité",  220, tk.W),
+            ("Actions",   90,  tk.CENTER),
+        ]
+        for col, w, anchor in col_defs:
+            self.tree.heading(col, text=col)
+            self.tree.column(col, width=w, anchor=anchor, minwidth=w // 2)
 
-        # Configuration des colonnes
-        self.tree.heading("Proto", text="Proto")
-        self.tree.heading("Port", text="Port")
-        self.tree.heading("Service", text="Service")
-        self.tree.heading("PID", text="PID")
-        self.tree.heading("Processus", text="Processus")
-        self.tree.heading("Sécurité", text="Sécurité")
-        self.tree.heading("Actions", text="Actions")
+        # Zebra stripe tags
+        self.tree.tag_configure("row_even", background=PALETTE["card"])
+        self.tree.tag_configure("row_odd",  background=PALETTE["row_alt"])
 
-        self.tree.column("Proto", width=70, anchor=tk.CENTER)
-        self.tree.column("Port", width=80, anchor=tk.CENTER)
-        self.tree.column("Service", width=120)
-        self.tree.column("PID", width=80, anchor=tk.CENTER)
-        self.tree.column("Processus", width=200)
-        self.tree.column("Sécurité", width=100, anchor=tk.CENTER)
-        self.tree.column("Actions", width=150)
+        v_sb = ttk.Scrollbar(res_card, orient=tk.VERTICAL,   command=self.tree.yview)
+        h_sb = ttk.Scrollbar(res_card, orient=tk.HORIZONTAL, command=self.tree.xview)
+        self.tree.configure(yscrollcommand=v_sb.set, xscrollcommand=h_sb.set)
 
-        # Scrollbars
-        v_scrollbar = ttk.Scrollbar(results_frame, orient=tk.VERTICAL, command=self.tree.yview)
-        h_scrollbar = ttk.Scrollbar(results_frame, orient=tk.HORIZONTAL, command=self.tree.xview)
+        self.tree.grid(row=1, column=0, sticky="nsew")
+        v_sb.grid(row=1, column=1, sticky="ns")
+        h_sb.grid(row=2, column=0, sticky="ew")
 
-        self.tree.configure(yscrollcommand=v_scrollbar.set, xscrollcommand=h_scrollbar.set)
-
-        self.tree.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        v_scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
-        h_scrollbar.grid(row=1, column=0, sticky=(tk.W, tk.E))
-
-        # Bind double-click pour actions
         self.tree.bind("<Double-1>", self.on_port_double_click)
 
-        # Menu contextuel
-        self.context_menu = tk.Menu(self.root, tearoff=0)
-        self.context_menu.add_command(label="🔧 Arrêter le service", command=self.stop_service)
-        self.context_menu.add_command(label="💀 Tuer le processus", command=self.kill_process)
-        self.context_menu.add_command(label="📋 Copier les détails", command=self.copy_details)
+        # Context menu
+        self.context_menu = tk.Menu(self.root, tearoff=0,
+            bg=PALETTE["card"], fg=PALETTE["text"],
+            activebackground=PALETTE["accent_light"],
+            activeforeground=PALETTE["accent_dark"],
+            font=self.scaled_font_ui,
+        )
+        self.context_menu.add_command(label="🔧  Arrêter le service",  command=self.stop_service)
+        self.context_menu.add_command(label="💀  Tuer le processus",   command=self.kill_process)
+        self.context_menu.add_separator()
+        self.context_menu.add_command(label="📋  Copier les détails",  command=self.copy_details)
         self.tree.bind("<Button-3>", self.show_context_menu)
 
-        # Barre de progression
-        self.progress_frame = ttk.Frame(main_frame)
-        self.progress_frame.grid(row=5, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(10, 0))
-        self.progress_frame.columnconfigure(0, weight=1)
+        # ─────────────────────────────────────────────────────────────────────
+        # Progress footer
+        # ─────────────────────────────────────────────────────────────────────
+        footer = tk.Frame(wrap, bg=PALETTE["bg"])
+        footer.grid(row=3, column=0, sticky="ew", padx=12, pady=(0, 10))
+        footer.columnconfigure(0, weight=1)
 
         self.progress_var = tk.DoubleVar()
         self.progress_bar = ttk.Progressbar(
-            self.progress_frame,
-            variable=self.progress_var,
-            maximum=100,
-            style="Colored.Horizontal.TProgressbar"
+            footer, variable=self.progress_var, maximum=100,
+            style="Modern.Horizontal.TProgressbar",
         )
-        self.progress_bar.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 10))
+        self.progress_bar.grid(row=0, column=0, sticky="ew", padx=(0, 12))
 
         self.progress_label = tk.Label(
-            self.progress_frame,
-            text="Prêt pour le scan",
-            bg=PALETTE["bg"],
-            fg=PALETTE["muted"],
-            font=self.scaled_font_sub
+            footer, text="Prêt",
+            bg=PALETTE["bg"], fg=PALETTE["muted"],
+            font=(ff, max(9, fs - 1)),
         )
-        self.progress_label.grid(row=0, column=1)
+        self.progress_label.grid(row=0, column=1, sticky="e")
 
     # Note: responsive auto-scaling of fonts was removed because it caused
     # feedback loops in some environments. The UI uses grid weights and
@@ -1136,34 +1240,33 @@ class PortScannerGUI:
     def populate_results(self, open_ports, target_ip):
         """Remplit le tableau avec les résultats"""
         self.scan_results = []
-        
+        row_idx = 0
+
         for port, banner, proto in sorted(open_ports, key=lambda x: (x[2], x[0])):
             service_name, service_cmd, _ = get_service_info(port)
-            
-            # Récupération des PID
+
             pid_infos = get_pids_for_port(port)
             if pid_infos:
                 pid_display = ", ".join(f"{x['pid']}" for x in pid_infos)
                 process_display = ", ".join(f"{x['name']}" for x in pid_infos)
             else:
-                pid_display = "Inconnu"
-                process_display = "Inconnu" if not self.is_admin else "Aucun"
-            
-            # Analyse de sécurité (heuristiques améliorées)
+                pid_display = "—"
+                process_display = "—" if not self.is_admin else "Aucun"
+
             security, _ = self.classify_port(port, service_name, pid_infos, banner, target_ip)
-            
-            # Ajout à l'arbre
-            item_id = self.tree.insert("", tk.END, values=(
+
+            row_tag = "row_even" if row_idx % 2 == 0 else "row_odd"
+            item_id = self.tree.insert("", tk.END, tags=(row_tag,), values=(
                 proto.upper(),
                 port,
                 service_name,
                 pid_display,
-                process_display[:30] + "..." if len(process_display) > 30 else process_display,
+                process_display[:32] + "…" if len(process_display) > 32 else process_display,
                 security,
-                "Double-clic"
+                "↗ Détails",
             ))
-            
-            # Stockage des données complètes
+            row_idx += 1
+
             self.scan_results.append({
                 "item_id": item_id,
                 "protocol": proto,
@@ -1172,18 +1275,17 @@ class PortScannerGUI:
                 "service_cmd": service_cmd,
                 "banner": banner,
                 "pid_infos": pid_infos,
-                "target_ip": target_ip
+                "target_ip": target_ip,
             })
-        
-        # Mise à jour du statut
+
         num_results = len(open_ports)
         if num_results == 0:
-            status_text = "Aucun port ouvert détecté"
+            status_text = "Aucun port ouvert"
             if not self.show_dynamic_var.get():
                 status_text += " (ports dynamiques masqués)"
         else:
-            status_text = f"Scan terminé - {num_results} port(s) ouvert(s) trouvé(s)"
-        
+            status_text = f"Scan terminé — {num_results} port(s) ouvert(s)"
+
         self.progress_label.config(text=status_text)
         self.progress_var.set(100)
     
@@ -1292,165 +1394,121 @@ class PortScannerGUI:
     
     def show_port_details(self, result):
         """Affiche les détails d'un port dans une fenêtre popup"""
-        details_window = tk.Toplevel(self.root)
-        details_window.title(f"Détails du Port {result['port']}")
-        details_window.transient(self.root)
-        # Taille proportionnelle à l'écran
+        dw = tk.Toplevel(self.root)
+        dw.title(f"Port {result['port']} — {result.get('service_name', '')}")
+        dw.transient(self.root)
+        dw.configure(bg=PALETTE["bg"])
         try:
             sw = int(self.root.winfo_screenwidth() or 1200)
             sh = int(self.root.winfo_screenheight() or 800)
-            w = max(600, int(sw * 0.6))
-            h = max(400, int(sh * 0.6))
-            details_window.geometry(f"{w}x{h}")
+            w = max(640, int(sw * 0.55))
+            h = max(440, int(sh * 0.55))
+            dw.geometry(f"{w}x{h}+{(sw-w)//2}+{(sh-h)//2}")
+            dw.minsize(560, 380)
         except Exception:
-            details_window.geometry("800x600")
-        details_window.resizable(True, True)
-        details_window.configure(bg='white')
-        # Center and set minimum size so buttons remain visible
-        try:
-            details_window.update_idletasks()
-            sx = details_window.winfo_screenwidth()
-            sy = details_window.winfo_screenheight()
-            dx = int((sx - w) / 2) if 'w' in locals() else int((sx - 800) / 2)
-            dy = int((sy - h) / 2) if 'h' in locals() else int((sy - 600) / 2)
-            details_window.geometry(f"+{dx}+{dy}")
-            details_window.minsize(int((w if 'w' in locals() else 800) * 0.6), int((h if 'h' in locals() else 600) * 0.5))
-        except Exception:
-            pass
-        
-        # Frame principal
-        frame = tk.Frame(details_window, padx=10, pady=10)
-        frame.pack(fill=tk.BOTH, expand=True)
-        
-        # Résumé
-        summary_label = tk.Label(
-            frame,
-            text=f"{(result.get('protocol') or 'tcp').upper()} Port {result['port']} - {result['service_name']} sur {result['target_ip']}",
-            font=self.scaled_font_sub,
-            bg='white',
-            fg=PALETTE['text']
+            dw.geometry("720x520")
+        dw.resizable(True, True)
+
+        # Header
+        hdr = tk.Frame(dw, bg=PALETTE["header_bg"], height=52)
+        hdr.pack(fill=tk.X)
+        hdr.pack_propagate(False)
+        proto = (result.get('protocol') or 'tcp').upper()
+        tk.Label(hdr,
+                 text=f"{proto}  :{result['port']}  —  {result.get('service_name','?')}  @  {result.get('target_ip','')}",
+                 bg=PALETTE["header_bg"], fg=PALETTE["header_fg"],
+                 font=self.scaled_font_sub).pack(side=tk.LEFT, padx=16, pady=12)
+
+        # Body
+        body = tk.Frame(dw, bg=PALETTE["bg"], padx=12, pady=8)
+        body.pack(fill=tk.BOTH, expand=True)
+        body.columnconfigure(0, weight=1)
+        body.rowconfigure(0, weight=1)
+
+        ff = self.scaled_font_ui[0]
+        fs = self.scaled_font_ui[1] if len(self.scaled_font_ui) > 1 else 10
+        mono = "Consolas" if platform.system().lower().startswith("win") else "Monaco" if platform.system().lower().startswith("dar") else "DejaVu Sans Mono"
+        code_font = (mono, max(9, fs - 1))
+
+        info_text = scrolledtext.ScrolledText(
+            body, wrap=tk.WORD, font=code_font,
+            bg=PALETTE["card"], fg=PALETTE["text"],
+            selectbackground=PALETTE["accent_light"],
+            relief="flat", borderwidth=0, padx=10, pady=8,
         )
-        summary_label.pack(pady=(0, 10))
-        
-        # Informations
-        # Use a readable monospace/code font for details when possible
-        try:
-            code_font = ("Courier", max(10, int(self.scaled_font_ui[1]) if len(self.scaled_font_ui) > 1 else 10))
-        except Exception:
-            code_font = ("Courier", 10)
+        info_text.grid(row=0, column=0, sticky="nsew", pady=(0, 8))
 
-        info_text = scrolledtext.ScrolledText(frame, height=20, wrap=tk.WORD, font=code_font)
-        info_text.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
-
-        # Construire un affichage clair et robuste des détails
-        details_lines = []
-        details_lines.append(f"Service détecté : {result.get('service_name')}")
-        details_lines.append(f"Service (cmd): {result.get('service_cmd') or 'Inconnu'}")
-        details_lines.append(f"Protocole: {(result.get('protocol') or 'tcp').upper()}")
-        details_lines.append(f"Cible: {result.get('target_ip')}")
-        details_lines.append("")
-
-        # Banner : afficher en repr si non-printable ou trop long
-        banner = result.get('banner') or ''
-        if banner:
-            safe_banner = banner if all(32 <= ord(c) <= 126 for c in banner) else repr(banner)
-            if len(safe_banner) > 100:
-                safe_banner = safe_banner[:100] + "..."
-            details_lines.append("Banner:")
-            details_lines.append(safe_banner)
-            details_lines.append("")
-
-        # Si la cible n'est pas locale, indiquer que l'on ne peut pas récupérer les PID locaux
+        # Build details text
         local = is_local_target_strict(result.get('target_ip'))
-        details_lines.append(f"Cible locale: {'Oui' if local else 'Non'}")
-        details_lines.append("")
-
-        # Récupérer et afficher les PIDs (rafraîchir au moment de l'ouverture)
         pid_infos = []
         if local:
             try:
                 pid_infos = get_pids_for_port(result['port'])
             except Exception:
                 pid_infos = result.get('pid_infos', []) or []
-        else:
-            pid_infos = []
+
+        lines = [
+            f"Service   : {result.get('service_name')}",
+            f"Commande  : {result.get('service_cmd') or '—'}",
+            f"Protocole : {proto}",
+            f"Cible     : {result.get('target_ip')}  ({'locale' if local else 'distante'})",
+            "",
+        ]
+        banner = result.get('banner') or ''
+        if banner:
+            safe = banner if all(32 <= ord(c) <= 126 for c in banner) else repr(banner)
+            lines += ["Banner :", f"  {safe[:120]}{'…' if len(safe) > 120 else ''}", ""]
 
         if pid_infos:
-            details_lines.append("Processus trouvés :")
-            for pid_info in pid_infos:
-                cmdline = pid_info.get('cmd') or ''
-                # Si cmdline est trop long, afficher complet sur une ligne séparée
-                details_lines.append(f"  PID: {pid_info.get('pid')} | Nom: {pid_info.get('name')} | Utilisateur: {pid_info.get('user')}")
-                details_lines.append(f"    CMD: {cmdline}")
-                details_lines.append("")
+            lines.append("Processus :")
+            for p in pid_infos:
+                lines.append(f"  PID {p.get('pid')}  {p.get('name')}  [{p.get('user')}]")
+                if p.get('cmd'):
+                    lines.append(f"    {p.get('cmd')}")
+            lines.append("")
         else:
-            details_lines.append("Aucun PID trouvé localement pour ce port.")
-            if not local:
-                details_lines.append("(Cible distante — impossible de récupérer les PID locaux)")
-            else:
-                details_lines.append("(Exécutez l'application en mode administrateur/sudo pour obtenir plus d'informations sur les processus)")
-            details_lines.append("")
+            msg = "(cible distante)" if not local else "(relancer en sudo pour voir les PIDs)"
+            lines += [f"Aucun PID trouvé {msg}", ""]
 
-        # Instructions utiles
-        details_lines.append("Actions recommandées :")
+        lines += [
+            "Commandes utiles :",
+            f"  sudo ss -ltnp | grep :{result.get('port')}",
+            f"  sudo lsof -i :{result.get('port')}",
+        ]
         if result.get('service_cmd'):
-            details_lines.append(f"  - Arrêter proprement le service: sudo systemctl stop {result.get('service_cmd')}")
-        details_lines.append(f"  - Vérifier les PIDs via: sudo lsof -i :{result.get('port')} || sudo ss -ltnp | grep :{result.get('port')}")
+            lines.append(f"  sudo systemctl stop {result.get('service_cmd')}")
 
-        details = "\n".join(details_lines)
+        details = "\n".join(lines)
         info_text.insert(tk.END, details)
-        # Mettre à jour l'affichage
-        details_window.update()
-        
-        # Boutons d'action (utiliser polices mises à l'échelle)
-        buttons_frame = tk.Frame(frame)
-        buttons_frame.pack(fill=tk.X, pady=(10, 0))
+        info_text.config(state=tk.DISABLED)
 
-        btn_font = self.scaled_font_ui
+        # Action buttons
+        btn_bar = tk.Frame(body, bg=PALETTE["bg"])
+        btn_bar.grid(row=1, column=0, sticky="ew")
 
-        # Bouton arrêter service
-        stop_state = tk.NORMAL if self.is_admin and result['service_cmd'] else tk.DISABLED
-        tk.Button(
-            buttons_frame,
-            text=f"🔧 Arrêter {result['service_cmd'] or 'service'}",
-            command=lambda: self.stop_service_action(result, details_window),
-            state=stop_state,
-            font=btn_font
-        ).pack(side=tk.LEFT, padx=(0, 5))
+        stop_state  = tk.NORMAL if self.is_admin and result.get('service_cmd') else tk.DISABLED
+        kill_state  = tk.NORMAL if self.is_admin and result.get('pid_infos') else tk.DISABLED
 
-        # Bouton tuer processus
-        kill_state = tk.NORMAL if self.is_admin and result['pid_infos'] else tk.DISABLED
-        tk.Button(
-            buttons_frame,
-            text="💀 Tuer les processus",
-            command=lambda: self.kill_process_action(result, details_window),
-            state=kill_state,
-            font=btn_font
-        ).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(btn_bar, text="🔧 Arrêter service",
+                   command=lambda: self.stop_service_action(result, dw),
+                   state=stop_state, style="TButton").pack(side=tk.LEFT, padx=(0, 6))
+        ttk.Button(btn_bar, text="💀 Tuer processus",
+                   command=lambda: self.kill_process_action(result, dw),
+                   state=kill_state, style="Stop.TButton").pack(side=tk.LEFT, padx=(0, 6))
+        ttk.Button(btn_bar, text="📋 Copier",
+                   command=lambda: self.copy_to_clipboard(details),
+                   style="TButton").pack(side=tk.LEFT)
+        ttk.Button(btn_bar, text="Fermer",
+                   command=dw.destroy,
+                   style="Primary.TButton").pack(side=tk.RIGHT)
 
-        tk.Button(
-            buttons_frame,
-            text="📋 Copier",
-            command=lambda: self.copy_to_clipboard(details),
-            font=btn_font
-        ).pack(side=tk.LEFT, padx=(0, 5))
-
-        tk.Button(
-            buttons_frame,
-            text="Fermer",
-            command=details_window.destroy,
-            font=btn_font
-        ).pack(side=tk.RIGHT)
-        
-        # Mettre à jour l'affichage and ensure focus so buttons are clickable
         try:
-            details_window.update_idletasks()
-            details_window.wait_visibility()
-            details_window.lift()
-            details_window.focus_force()
-            details_window.grab_set()
+            dw.update_idletasks()
+            dw.wait_visibility()
+            dw.lift()
+            dw.focus_force()
+            dw.grab_set()
         except Exception:
-            # If grab_set fails (non-graphical X session), continue without modal grab
             pass
     
     def stop_service_action(self, result, parent_window):
