@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv_build/
+.venv*/
+env/
+env_qt/
+dist/
+build/
+scan_port_gui.desktop
+scan_port.png
+scan_port_gui_linux
+*.egg-info/

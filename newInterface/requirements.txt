@@ -1,0 +1,3 @@
+# Runtime deps for the Qt GUI
+PySide6>=6.5
+psutil>=5.9
